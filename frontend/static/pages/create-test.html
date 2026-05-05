@@ -102,6 +102,10 @@
         <div class="field"><label>Test Title</label><input type="text" id="testTitle" placeholder="e.g. Physics Unit 1 — Newton's Laws"/></div>
         <div class="field"><label>Subject</label><input type="text" id="testSubject" placeholder="e.g. Physics"/></div>
       </div>
+      <div class="two-col" style="margin-top:14px">
+        <div class="field"><label>Submission Deadline <span style="color:var(--muted);font-weight:400">(optional)</span></label><input type="datetime-local" id="testDeadline"/><div class="hint">Students cannot upload after this date/time</div></div>
+        <div class="field"></div>
+      </div>
     </div>
 
     <!-- Exam Layout -->
@@ -254,6 +258,15 @@
         const res  = await fetch('/test/create', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
         const data = await res.json();
         if(res.ok) {
+          // Set deadline if provided
+          const deadlineVal = document.getElementById('testDeadline').value;
+          if(deadlineVal) {
+            await fetch(`/test/${data.test_id}/deadline`, {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({deadline: new Date(deadlineVal).toISOString()})
+            });
+          }
           lastBoundingBoxes = data.bounding_boxes || [];
           document.getElementById('successMsg').textContent = `Test #${data.test_id} created · ${data.total_marks} total marks`;
           document.getElementById('downloadLink').href = data.pdf_url;

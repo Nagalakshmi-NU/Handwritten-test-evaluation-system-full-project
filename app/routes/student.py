@@ -21,15 +21,20 @@ def log(user_id, action):
 def get_student_tests():
     if current_user.role != "student":
         return jsonify({"error": "Students only"}), 403
+    from datetime import datetime
     tests = Test.query.filter_by(status="active").all()
     result = []
     for t in tests:
         sub = Submission.query.filter_by(test_id=t.id, student_id=current_user.id).first()
+        now = datetime.utcnow()
+        deadline_passed = t.deadline and now > t.deadline
         result.append({
             "test_id": t.id, "title": t.title,
             "subject": t.subject, "total_marks": t.total_marks,
             "submission_id": sub.id if sub else None,
-            "submission_status": sub.status if sub else None
+            "submission_status": sub.status if sub else None,
+            "deadline": t.deadline.isoformat() if t.deadline else None,
+            "deadline_passed": deadline_passed
         })
     return jsonify({"tests": result}), 200
 
@@ -69,7 +74,11 @@ def submit():
     if not test:
         return jsonify({"error": f"Test {test_id} not found"}), 404
 
-    files = request.files.getlist("image")
+    # Check deadline
+    from datetime import datetime
+    if test.deadline and datetime.utcnow() > test.deadline:
+        return jsonify({"error": "Submission deadline has passed. You can no longer upload answers for this test."}), 403
+
     if not files or all(f.filename == "" for f in files):
         return jsonify({"error": "No image file uploaded"}), 400
 

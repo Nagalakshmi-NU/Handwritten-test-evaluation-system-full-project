@@ -186,13 +186,21 @@
       }
       grid.innerHTML = tests.map((test,i)=>{
         const status = test.submission_status||'not_submitted';
-        const canUpload = status==='not_submitted';
+        const canUpload = status==='not_submitted' && !test.deadline_passed;
         const canResults = status==='published';
+        const deadlineText = test.deadline
+          ? `⏰ Due: ${new Date(test.deadline).toLocaleString('en-IN',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}`
+          : '';
+        const deadlineColor = test.deadline_passed ? 'var(--error)' : 'var(--warning)';
         return `<div class="test-card" style="animation-delay:${i*.05}s">
           <div class="test-card-top">
             <div style="display:flex;gap:12px;align-items:flex-start">
               <div class="test-icon">📝</div>
-              <div><div class="test-title">${test.title}</div><div class="test-meta">Test #${test.test_id} · ${test.subject||'General'} · ${test.total_marks} marks</div></div>
+              <div>
+                <div class="test-title">${test.title}</div>
+                <div class="test-meta">Test #${test.test_id} · ${test.subject||'General'} · ${test.total_marks} marks</div>
+                ${deadlineText ? `<div style="font-size:11px;color:${deadlineColor};margin-top:4px;font-weight:600">${test.deadline_passed?'❌ Deadline passed — ':''} ${deadlineText}</div>` : ''}
+              </div>
             </div>
             <span class="status-badge ${status}"><span class="dot"></span>${STATUS_LABELS[status]||status}</span>
           </div>
