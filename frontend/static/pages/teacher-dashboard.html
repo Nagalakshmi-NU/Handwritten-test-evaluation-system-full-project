@@ -28,8 +28,31 @@
     .test-row-info{flex:1}
     .test-row-title{font-family:'Syne',sans-serif;font-weight:700;font-size:15px}
     .test-row-meta{font-size:12px;color:var(--muted);margin-top:3px}
-    .excel-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);color:var(--success);border-radius:8px;font-family:'Syne',sans-serif;font-weight:600;font-size:13px;text-decoration:none;transition:all .2s;white-space:nowrap}
+    .excel-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);color:var(--success);border-radius:8px;font-family:'Syne',sans-serif;font-weight:600;font-size:13px;text-decoration:none;transition:all .2s;white-space:nowrap;cursor:pointer}
     .excel-btn:hover{background:rgba(52,211,153,.2);transform:translateY(-1px)}
+    .view-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:rgba(79,142,247,.1);border:1px solid rgba(79,142,247,.25);color:var(--accent);border-radius:8px;font-family:'Syne',sans-serif;font-weight:600;font-size:13px;cursor:pointer;transition:all .2s;white-space:nowrap}
+    .view-btn:hover{background:rgba(79,142,247,.2);transform:translateY(-1px)}
+    /* Preview Modal */
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:300;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto}
+    .modal-overlay.show{display:flex}
+    .modal-box{background:var(--surface);border:1px solid var(--border);border-radius:20px;width:100%;max-width:900px;padding:32px;position:relative;animation:fadeUp .3s ease}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+    .modal-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);color:var(--muted);font-size:18px;cursor:pointer;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+    .modal-close:hover{color:var(--error);background:rgba(248,113,113,.1)}
+    .modal-title{font-family:'Syne',sans-serif;font-weight:800;font-size:20px;margin-bottom:4px}
+    .modal-meta{font-size:13px;color:var(--muted);margin-bottom:20px}
+    .modal-actions{display:flex;gap:10px;margin-bottom:20px}
+    .preview-table{width:100%;border-collapse:collapse;font-size:13px}
+    .preview-table th{background:rgba(79,142,247,.1);color:var(--accent);font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.8px;text-transform:uppercase;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border)}
+    .preview-table td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--text)}
+    .preview-table tr:hover td{background:rgba(79,142,247,.04)}
+    .grade-A{color:var(--success);font-weight:700}
+    .grade-B{color:var(--accent);font-weight:700}
+    .grade-C{color:var(--warning);font-weight:700}
+    .grade-D{color:var(--error);font-weight:700}
+    .status-not{color:var(--error);font-size:12px}
+    .status-pub{color:var(--success);font-size:12px}
+    .status-pend{color:var(--warning);font-size:12px}
     @media(max-width:700px){.stats-row{grid-template-columns:1fr 1fr}.t-cols{grid-template-columns:2fr 1.5fr 1fr}.t-cols>*:nth-child(2),.t-cols>*:nth-child(4){display:none}}
   </style>
 </head>
@@ -85,6 +108,27 @@
       <div id="queueBody"></div>
     </div>
   </div>
+  <!-- Results Preview Modal -->
+  <div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeModal()">✕</button>
+      <div class="modal-title" id="modalTitle">Results</div>
+      <div class="modal-meta" id="modalMeta"></div>
+      <div class="modal-actions">
+        <a id="modalDownloadBtn" href="#" class="excel-btn" download>📥 Download Excel</a>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="preview-table" id="previewTable">
+          <thead><tr>
+            <th>Student Name</th><th>Student ID</th><th>Email</th>
+            <th>Score</th><th>Max</th><th>%</th><th>Grade</th><th>Status</th>
+          </tr></thead>
+          <tbody id="previewBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <script>
     const STATUS_LABELS={pending:'Pending',processing:'Processing',llm_done:'AI Done',reviewed:'Reviewed',published:'Published'};
     function formatDate(iso){const d=new Date(iso);return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'})+' · '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});}
@@ -120,11 +164,53 @@
               <div class="test-row-title">${t.title}</div>
               <div class="test-row-meta">Test #${t.test_id} · ${t.subject||'General'} · ${t.total_marks} marks · ${t.submissions} submission${t.submissions!==1?'s':''} · <span style="color:${t.status==='active'?'var(--success)':'var(--muted)'}">${t.status}</span></div>
             </div>
-            <a href="/teacher/export/${t.test_id}" class="excel-btn" download>
-              📊 Download Excel
-            </a>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="view-btn" onclick="viewResults(${t.test_id},'${t.title.replace(/'/g,"\\'")}')">&#128065; View Results</button>
+              <a href="/teacher/export/${t.test_id}" class="excel-btn" download>📥 Download Excel</a>
+            </div>
           </div>`).join('');
       }catch(err){}
+    }
+
+    async function viewResults(testId, testTitle){
+      document.getElementById('modalTitle').textContent = testTitle + ' — Results';
+      document.getElementById('modalMeta').textContent = 'Loading...';
+      document.getElementById('previewBody').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Loading...</td></tr>';
+      document.getElementById('modalDownloadBtn').href = `/teacher/export/${testId}`;
+      document.getElementById('modalOverlay').classList.add('show');
+
+      try{
+        const res = await fetch(`/teacher/export/${testId}`);
+        const csv = await res.text();
+        const rows = csv.trim().split('\n').map(r => r.split(','));
+        const headers = rows[0];
+        const body = rows.slice(1);
+
+        document.getElementById('modalMeta').textContent = `${body.length} student${body.length!==1?'s':''} total`;
+
+        document.getElementById('previewBody').innerHTML = body.map(row=>{
+          const status = row[7]||'';
+          const grade  = row[6]||'';
+          const statusClass = status.includes('Not')?'status-not':status.includes('Published')?'status-pub':'status-pend';
+          const gradeClass  = grade==='A'?'grade-A':grade==='B'?'grade-B':grade==='C'?'grade-C':grade==='D'?'grade-D':'';
+          return `<tr>
+            <td style="font-weight:600">${row[0]||''}</td>
+            <td style="color:var(--muted)">${row[1]||'—'}</td>
+            <td style="color:var(--muted);font-size:12px">${row[2]||''}</td>
+            <td style="font-weight:600">${row[3]||'—'}</td>
+            <td style="color:var(--muted)">${row[4]||''}</td>
+            <td style="font-weight:600">${row[5]||'—'}</td>
+            <td class="${gradeClass}">${grade||'—'}</td>
+            <td class="${statusClass}">${status}</td>
+          </tr>`;
+        }).join('');
+      }catch(e){
+        document.getElementById('previewBody').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--error)">Failed to load results.</td></tr>';
+      }
+    }
+
+    function closeModal(){
+      document.getElementById('modalOverlay').classList.remove('show');
     }
 
     async function loadQueue(){
