@@ -561,20 +561,37 @@ def export_results(test_id):
     test = Test.query.get_or_404(test_id)
     if test.teacher_id != current_user.id:
         return jsonify({"error": "Unauthorized"}), 403
-    subs = Submission.query.filter_by(test_id=test_id, status="published").all()
+
+    # Get all approved students
+    all_students = User.query.filter_by(role="student", status="approved").all()
+
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Student Name", "Student ID", "Email", "Total Score", "Max Marks", "Percentage", "Grade"])
-    for sub in subs:
-        student = User.query.get(sub.student_id)
-        evals   = Evaluation.query.filter_by(submission_id=sub.id).all()
-        total   = sum(e.final_score or 0 for e in evals)
-        pct     = round((total / test.total_marks) * 100, 1) if test.total_marks else 0
-        grade   = "A" if pct >= 80 else "B" if pct >= 60 else "C" if pct >= 40 else "D"
-        writer.writerow([student.name if student else "Unknown",
-                         student.student_id if student else "",
-                         student.email if student else "",
-                         total, test.total_marks, pct, grade])
+    writer.writerow(["Student Name", "Student ID", "Email",
+                     "Total Score", "Max Marks", "Percentage", "Grade", "Status"])
+
+    for student in all_students:
+        sub = Submission.query.filter_by(test_id=test_id, student_id=student.id).first()
+        if sub:
+            evals = Evaluation.query.filter_by(submission_id=sub.id).all()
+            total = sum(e.final_score or 0 for e in evals)
+            if sub.status == "published" and test.total_marks:
+                pct   = round((total / test.total_marks) * 100, 1)
+                grade = "A" if pct >= 80 else "B" if pct >= 60 else "C" if pct >= 40 else "D"
+            else:
+                pct   = "—"
+                grade = "—"
+                total = "—"
+            status = sub.status.replace("_", " ").title()
+        else:
+            total  = "—"
+            pct    = "—"
+            grade  = "—"
+            status = "Not Submitted"
+
+        writer.writerow([student.name, student.student_id or "—",
+                         student.email, total, test.total_marks, pct, grade, status])
+
     return Response(output.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": f"attachment;filename=results_test_{test_id}.csv"})
 
