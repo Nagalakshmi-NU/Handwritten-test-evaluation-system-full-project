@@ -73,7 +73,7 @@ def _groq_ocr(crop_bgr, groq_api_key):
         client = Groq(api_key=groq_api_key)
         img_b64 = _image_to_base64(crop_bgr)
         response = client.chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            model="llama-4-scout-17b-16e-instruct",
             messages=[{
                 "role": "user",
                 "content": [

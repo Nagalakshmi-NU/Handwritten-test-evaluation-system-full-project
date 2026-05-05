@@ -46,6 +46,20 @@ def _run_pipeline(submission_id):
         ).first()
         image_path = page.image_path if page else None
 
+        # If file missing (Render ephemeral), decode from base64 stored in DB
+        if image_path and not os.path.exists(image_path) and page and page.processed_text and page.processed_text.startswith('data:image'):
+            try:
+                import base64 as b64mod
+                header, data = page.processed_text.split(',', 1)
+                ext = header.split('/')[1].split(';')[0]
+                img_bytes = b64mod.b64decode(data)
+                os.makedirs(os.path.dirname(image_path), exist_ok=True)
+                with open(image_path, 'wb') as f:
+                    f.write(img_bytes)
+                print(f"Restored image from base64 for submission {submission_id}")
+            except Exception as e:
+                print(f"Could not restore image from base64: {e}")
+
         # Build questions list for ML pipeline
         questions_data = []
         bounding_boxes = []
@@ -116,6 +130,9 @@ def _run_pipeline(submission_id):
                             student_answer = _groq_ocr(crop, Config.GROQ_API_KEY)
                     except Exception as e:
                         print(f"Groq Vision OCR failed for Q{q_num}: {e}")
+                elif not os.path.exists(image_path or "") and page and page.processed_text:
+                    # File missing (Render ephemeral) but we have stored text
+                    student_answer = page.processed_text
 
                 try:
                     result = evaluate_answer(

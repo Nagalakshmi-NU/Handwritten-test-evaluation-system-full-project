@@ -107,7 +107,21 @@ def submit():
             filename = f"submission_{submission.id}_page{page_num}{os.path.splitext(file.filename)[1]}"
             filepath = os.path.join(upload_dir, filename)
             file.save(filepath)
-            db.session.add(SubmissionPage(submission_id=submission.id, page_number=page_num, image_path=filepath))
+            # Store base64 in processed_text as backup for Render ephemeral filesystem
+            try:
+                import base64
+                file.seek(0)
+                b64 = base64.b64encode(file.read()).decode('utf-8')
+                ext = os.path.splitext(file.filename)[1].lower()
+                processed_text = f"data:image/{ext.strip('.')};base64,{b64}"
+            except:
+                processed_text = None
+            db.session.add(SubmissionPage(
+                submission_id=submission.id,
+                page_number=page_num,
+                image_path=filepath,
+                processed_text=processed_text
+            ))
 
         db.session.commit()
         log(current_user.id, f"Submitted answer for test {test_id} ({len(files)} page(s))")
