@@ -220,10 +220,34 @@ def view_paper(test_id, paper_type):
 @teacher.route("/test/<int:test_id>/download-sheet", methods=["GET"])
 @login_required
 def download_sheet(test_id):
+    test = Test.query.get_or_404(test_id)
     pdf_path = os.path.join(BASE_DIR, 'generated_pdfs', f'test_{test_id}_answersheet.pdf')
+    os.makedirs(os.path.join(BASE_DIR, 'generated_pdfs'), exist_ok=True)
+
+    # Regenerate PDF if it doesn't exist (e.g. after Render redeploy)
     if not os.path.exists(pdf_path):
-        return jsonify({"error": "PDF not found"}), 404
-    return send_file(pdf_path, as_attachment=True, download_name=f"answersheet_test_{test_id}.pdf")
+        try:
+            questions = Question.query.filter_by(test_id=test_id).order_by(Question.question_number).all()
+            if not questions:
+                return jsonify({"error": "No questions found for this test"}), 404
+            questions_for_pdf = []
+            for q in questions:
+                rubric_data = json.loads(q.rubric_json)
+                bbox = rubric_data.get("bbox", {}) if isinstance(rubric_data, dict) else {}
+                questions_for_pdf.append({
+                    "question_number": q.question_number,
+                    "question_text": q.question_text or f"Question {q.question_number}",
+                    "max_marks": q.max_marks,
+                    "box_height": bbox.get("height", 120) if bbox else 120
+                })
+            generate_answer_sheet(
+                test_id=test_id, title=test.title,
+                questions=questions_for_pdf, output_path=pdf_path
+            )
+        except Exception as e:
+            return jsonify({"error": f"Could not generate PDF: {str(e)}"}), 500
+
+    return send_file(pdf_path, as_attachment=True, download_name=f"{test.title}_answersheet.pdf")
 
 @teacher.route("/teacher/tests", methods=["GET"])
 @login_required
