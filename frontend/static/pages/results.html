@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Results — AutoGrade</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/dashboard.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    .page{max-width:800px}
+    .back-link{display:inline-flex;align-items:center;gap:6px;color:var(--muted);text-decoration:none;font-size:13px;margin-bottom:20px;transition:color .2s;padding:6px 12px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid var(--border)}
+    .back-link:hover{color:var(--text);border-color:rgba(79,142,247,.3)}
+    /* Hero */
+    .score-hero{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:24px;padding:40px;text-align:center;margin-bottom:24px;animation:fadeUp .4s ease;position:relative;overflow:hidden}
+    .score-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(79,142,247,.08),transparent 70%);pointer-events:none}
+    .score-hero h1{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;letter-spacing:-.5px;margin-bottom:6px}
+    .score-hero p{font-size:14px;color:var(--muted);margin-bottom:28px}
+    .big-score{font-family:'Syne',sans-serif;font-weight:800;font-size:72px;letter-spacing:-3px;line-height:1;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .big-denom{font-size:32px;color:var(--muted);font-weight:400;-webkit-text-fill-color:var(--muted)}
+    .score-percent{font-size:16px;color:var(--muted);margin-top:8px}
+    .score-percent span{font-weight:700;color:var(--text)}
+    .score-bar-wrap{background:rgba(255,255,255,.06);border-radius:20px;height:10px;margin:20px 0 8px;overflow:hidden}
+    .score-bar{height:100%;border-radius:20px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width 1.2s cubic-bezier(.16,1,.3,1)}
+    .grade-badge{display:inline-block;padding:8px 24px;border-radius:20px;font-family:'Syne',sans-serif;font-weight:700;font-size:16px;margin-top:16px}
+    .grade-badge.A{background:rgba(52,211,153,.15);color:var(--success);border:1px solid rgba(52,211,153,.3)}
+    .grade-badge.B{background:rgba(79,142,247,.15);color:var(--accent);border:1px solid rgba(79,142,247,.3)}
+    .grade-badge.C{background:rgba(251,191,36,.15);color:var(--warning);border:1px solid rgba(251,191,36,.3)}
+    .grade-badge.D{background:rgba(248,113,113,.15);color:var(--error);border:1px solid rgba(248,113,113,.3)}
+    .hero-actions{display:flex;gap:10px;justify-content:center;margin-top:24px;flex-wrap:wrap}
+    .btn-download{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:all .2s;box-shadow:0 4px 16px rgba(79,142,247,.3)}
+    .btn-download:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(79,142,247,.4)}
+    /* Class average comparison */
+    .compare-card{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:20px;padding:24px;margin-bottom:24px;animation:fadeUp .4s ease .1s both}
+    .compare-title{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-bottom:20px}
+    .compare-bars{display:flex;flex-direction:column;gap:14px}
+    .compare-row{display:flex;align-items:center;gap:12px}
+    .compare-label{font-size:13px;font-weight:500;width:100px;flex-shrink:0}
+    .compare-bar-wrap{flex:1;background:rgba(255,255,255,.06);border-radius:20px;height:12px;overflow:hidden}
+    .compare-bar{height:100%;border-radius:20px;transition:width 1.2s cubic-bezier(.16,1,.3,1)}
+    .compare-bar.you{background:linear-gradient(90deg,var(--accent),var(--accent2))}
+    .compare-bar.class{background:linear-gradient(90deg,rgba(251,191,36,.7),rgba(251,191,36,.4))}
+    .compare-bar.highest{background:linear-gradient(90deg,rgba(52,211,153,.7),rgba(52,211,153,.4))}
+    .compare-pct{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;width:48px;text-align:right;flex-shrink:0}
+    .compare-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
+    .cs{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center}
+    .cs-val{font-family:'Syne',sans-serif;font-weight:800;font-size:22px}
+    .cs-lbl{font-size:11px;color:var(--muted);margin-top:4px}
+    /* Q cards */
+    .q-card{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:18px;padding:22px;margin-bottom:14px;animation:fadeUp .3s ease both;transition:border-color .2s}
+    .q-card:hover{border-color:rgba(79,142,247,.2)}
+    .q-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+    .q-label{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--accent);background:rgba(79,142,247,.1);padding:4px 12px;border-radius:20px;border:1px solid rgba(79,142,247,.2)}
+    .q-score{font-family:'Syne',sans-serif;font-weight:800;font-size:18px}
+    .q-question{font-size:14px;font-weight:600;margin-bottom:10px;color:var(--text)}
+    .q-answer-label{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+    .q-answer-box{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.6;margin-bottom:10px}
+    .q-feedback{background:rgba(79,142,247,.05);border:1px solid rgba(79,142,247,.12);border-radius:12px;padding:12px 14px;font-size:13px;color:var(--muted);line-height:1.6}
+    .q-feedback strong{color:var(--accent)}
+    .q-bar-wrap{background:rgba(255,255,255,.06);border-radius:20px;height:6px;margin-top:14px;overflow:hidden}
+    .q-bar{height:100%;border-radius:20px;transition:width 1s cubic-bezier(.16,1,.3,1)}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    @media(max-width:600px){.big-score{font-size:52px}.compare-stats{grid-template-columns:1fr 1fr}}
+  </style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <nav>
+    <a href="/static/pages/student-dashboard.html" class="nav-logo"><div class="logo-icon">✦</div><span class="logo-text">AutoGrade</span></a>
+    <div class="nav-links">
+      <a href="/static/pages/student-dashboard.html" class="nav-link">My Tests</a>
+      <a href="/static/pages/performance.html" class="nav-link">📈 Performance</a>
+      <div class="profile-wrap" onclick="toggleProfile()" id="profileWrap">
+        <div class="avatar student" id="profileAvatar"><div class="avatar-pulse"></div>S</div>
+        <div class="profile-info"><div class="profile-name" id="profileName">Student</div><div class="profile-role student">Student</div></div>
+        <div class="profile-dropdown" id="profileDropdown">
+          <div class="pd-header"><div class="pd-avatar student" id="pdAvatar">S</div><div><div class="pd-name" id="pdName">Student</div><div class="pd-email" id="pdEmail"></div></div></div>
+          <div class="pd-body"><div class="pd-divider"></div><button class="pd-item pd-logout" onclick="handleLogout()"><span class="pd-icon">🚪</span>Logout</button></div>
+        </div>
+      </div>
+    </div>
+  </nav>
+  <div class="page">
+    <a href="/static/pages/student-dashboard.html" class="back-link">← Back to Dashboard</a>
+    <div id="resultsContainer"></div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const submissionId = parseInt(urlParams.get('id'));
+    let resultData = null;
+
+    function getGrade(pct){return pct>=80?'A':pct>=60?'B':pct>=40?'C':'D';}
+    function getGradeLabel(pct){return pct>=80?'Excellent! 🌟':pct>=60?'Good Job! 👍':pct>=40?'Needs Improvement':'Please Review';}
+    function getScoreColor(pct){return pct>=80?'var(--success)':pct>=60?'var(--accent)':pct>=40?'var(--warning)':'var(--error)';}
+
+    async function loadResults(){
+      const container = document.getElementById('resultsContainer');
+      try{
+        const [resResult, resClass] = await Promise.all([
+          fetch(`/results/${submissionId}`),
+          fetch(`/student/class-average/0`) // placeholder, updated after
+        ]);
+        if(resResult.status===401){window.location.href='/static/pages/login.html';return;}
+        if(!resResult.ok){
+          const err = await resResult.json();
+          container.innerHTML=`<div style="text-align:center;padding:60px;color:var(--muted)"><div style="font-size:48px;margin-bottom:16px">⏳</div><h3 style="font-family:Syne,sans-serif;color:var(--text);margin-bottom:8px">Results Not Yet Published</h3><p>${err.error||'Check back later.'}</p></div>`;
+          return;
+        }
+        resultData = await resResult.json();
+        const pct = resultData.max_total>0?Math.round((resultData.total_score/resultData.max_total)*100):0;
+        const grade = getGrade(pct);
+
+        // fetch class average for this test
+        const classRes = await fetch(`/student/class-average/${resultData.test_id}`);
+        const classData = await classRes.json();
+
+        container.innerHTML = `
+          <div class="score-hero">
+            <h1>${resultData.test_title||'Test Results'}</h1>
+            <p>Your results have been published by your teacher</p>
+            <div class="big-score">${resultData.total_score}<span class="big-denom"> / ${resultData.max_total}</span></div>
+            <div class="score-percent">You scored <span>${pct}%</span></div>
+            <div class="score-bar-wrap"><div class="score-bar" id="heroBar" style="width:0%"></div></div>
+            <div class="grade-badge ${grade}">Grade ${grade} — ${getGradeLabel(pct)}</div>
+            <div class="hero-actions">
+              <button class="btn-download" onclick="downloadPDF()">⬇ Download Certificate PDF</button>
+            </div>
+          </div>
+
+          <div class="compare-card">
+            <div class="compare-title">📊 Your Score vs Class</div>
+            <div class="compare-bars">
+              <div class="compare-row">
+                <div class="compare-label" style="color:var(--accent)">You</div>
+                <div class="compare-bar-wrap"><div class="compare-bar you" id="barYou" style="width:0%"></div></div>
+                <div class="compare-pct" style="color:var(--accent)">${pct}%</div>
+              </div>
+              <div class="compare-row">
+                <div class="compare-label" style="color:var(--warning)">Class Avg</div>
+                <div class="compare-bar-wrap"><div class="compare-bar class" id="barClass" style="width:0%"></div></div>
+                <div class="compare-pct" style="color:var(--warning)">${classData.class_average}%</div>
+              </div>
+              <div class="compare-row">
+                <div class="compare-label" style="color:var(--success)">Highest</div>
+                <div class="compare-bar-wrap"><div class="compare-bar highest" id="barHighest" style="width:0%"></div></div>
+                <div class="compare-pct" style="color:var(--success)">${classData.highest}%</div>
+              </div>
+            </div>
+            <div class="compare-stats">
+              <div class="cs"><div class="cs-val" style="color:var(--accent)">${pct>=classData.class_average?'▲ Above':'▼ Below'}</div><div class="cs-lbl">vs Class Average</div></div>
+              <div class="cs"><div class="cs-val" style="color:var(--muted)">${classData.total_students}</div><div class="cs-lbl">Students Attempted</div></div>
+              <div class="cs"><div class="cs-val" style="color:var(--success)">${classData.highest}%</div><div class="cs-lbl">Class Highest</div></div>
+            </div>
+          </div>
+
+          <div class="section-title">Question Breakdown</div>
+          ${resultData.questions.map((q,i)=>{
+            const score = q.override_score!==null&&q.override_score!==undefined?q.override_score:q.ai_score;
+            const qPct = q.max_marks>0?Math.round((score/q.max_marks)*100):0;
+            const sc = getScoreColor(qPct);
+            return `<div class="q-card" style="animation-delay:${i*.06}s">
+              <div class="q-card-top">
+                <span class="q-label">Question ${q.question_number}</span>
+                <span class="q-score" style="color:${sc}">${score} / ${q.max_marks}</span>
+              </div>
+              <div class="q-question">${q.question_text||''}</div>
+              <div class="q-answer-label">Your Answer (OCR)</div>
+              <div class="q-answer-box">${q.ocr_text||'<em style="opacity:.5">No answer detected</em>'}</div>
+              <div class="q-feedback"><strong>💬 Feedback:</strong> ${q.feedback||'No feedback.'}</div>
+              <div class="q-bar-wrap"><div class="q-bar" style="width:${qPct}%;background:${sc}"></div></div>
+            </div>`;
+          }).join('')}`;
+
+        // animate bars
+        setTimeout(()=>{
+          document.getElementById('heroBar').style.width = pct+'%';
+          document.getElementById('barYou').style.width = pct+'%';
+          document.getElementById('barClass').style.width = classData.class_average+'%';
+          document.getElementById('barHighest').style.width = classData.highest+'%';
+        },200);
+
+      }catch(err){
+        container.innerHTML='<div style="text-align:center;padding:60px;color:var(--muted)"><div style="font-size:48px;margin-bottom:16px">⚠️</div><h3 style="font-family:Syne,sans-serif;color:var(--text)">Could not load results</h3><p>Make sure you are logged in.</p></div>';
+      }
+    }
+
+    // ── PDF Certificate ──────────────────────────────────────
+    async function downloadPDF(){
+      if(!resultData) return;
+      // Get student name from profile
+      let studentName = 'Student';
+      try{ const me = await fetch('/me'); const md = await me.json(); studentName = md.name || 'Student'; }catch(e){}
+
+      const {jsPDF} = window.jspdf;
+      const doc = new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+      const pct = resultData.max_total>0?Math.round((resultData.total_score/resultData.max_total)*100):0;
+      const grade = getGrade(pct);
+      const W = 210, H = 297;
+
+      // Background
+      doc.setFillColor(6,8,16); doc.rect(0,0,W,H,'F');
+
+      // Border
+      doc.setDrawColor(79,142,247); doc.setLineWidth(1.5);
+      doc.rect(10,10,W-20,H-20,'S');
+      doc.setDrawColor(124,58,237); doc.setLineWidth(0.5);
+      doc.rect(13,13,W-26,H-26,'S');
+
+      // Header
+      doc.setTextColor(79,142,247);
+      doc.setFontSize(10); doc.setFont('helvetica','bold');
+      doc.text('AUTOGRADE — AI EVALUATION SYSTEM', W/2, 30, {align:'center'});
+
+      doc.setTextColor(240,244,255);
+      doc.setFontSize(28); doc.setFont('helvetica','bold');
+      doc.text('RESULT CERTIFICATE', W/2, 50, {align:'center'});
+
+      // Divider
+      doc.setDrawColor(79,142,247); doc.setLineWidth(0.5);
+      doc.line(30, 56, W-30, 56);
+
+      // Student info
+      doc.setFontSize(13); doc.setFont('helvetica','normal');
+      doc.setTextColor(136,146,176);
+      doc.text('This certifies that', W/2, 70, {align:'center'});
+      doc.setFontSize(22); doc.setFont('helvetica','bold');
+      doc.setTextColor(240,244,255);
+      doc.text(studentName, W/2, 84, {align:'center'});
+
+      doc.setFontSize(12); doc.setFont('helvetica','normal');
+      doc.setTextColor(136,146,176);
+      doc.text('has successfully completed', W/2, 96, {align:'center'});
+      doc.setFontSize(16); doc.setFont('helvetica','bold');
+      doc.setTextColor(79,142,247);
+      doc.text(resultData.test_title||'Test', W/2, 108, {align:'center'});
+
+      // Score box
+      doc.setFillColor(20,25,50); doc.roundedRect(55,118,100,50,5,5,'F');
+      doc.setDrawColor(79,142,247); doc.setLineWidth(0.8);
+      doc.roundedRect(55,118,100,50,5,5,'S');
+
+      doc.setFontSize(36); doc.setFont('helvetica','bold');
+      doc.setTextColor(79,142,247);
+      doc.text(`${resultData.total_score}/${resultData.max_total}`, W/2, 140, {align:'center'});
+      doc.setFontSize(14); doc.setTextColor(136,146,176);
+      doc.text(`${pct}% — Grade ${grade}`, W/2, 155, {align:'center'});
+
+      // Question breakdown
+      doc.setFontSize(11); doc.setFont('helvetica','bold');
+      doc.setTextColor(240,244,255);
+      doc.text('Question Breakdown', W/2, 180, {align:'center'});
+      doc.setDrawColor(79,142,247); doc.line(30,183,W-30,183);
+
+      let y = 192;
+      resultData.questions.forEach((q,i)=>{
+        const score = q.override_score!==null&&q.override_score!==undefined?q.override_score:q.ai_score;
+        doc.setFontSize(10); doc.setFont('helvetica','normal');
+        doc.setTextColor(136,146,176);
+        doc.text(`Q${q.question_number}. ${(q.question_text||'').substring(0,50)}`, 30, y);
+        doc.setFont('helvetica','bold');
+        doc.setTextColor(score/q.max_marks>=0.8?52:score/q.max_marks>=0.5?79:248,
+                         score/q.max_marks>=0.8?211:score/q.max_marks>=0.5?142:113,
+                         score/q.max_marks>=0.8?153:score/q.max_marks>=0.5?247:113);
+        doc.text(`${score}/${q.max_marks}`, W-30, y, {align:'right'});
+        y += 10;
+        if(y > H-30) return;
+      });
+
+      // Footer
+      doc.setDrawColor(79,142,247); doc.line(30,H-30,W-30,H-30);
+      doc.setFontSize(9); doc.setFont('helvetica','normal');
+      doc.setTextColor(136,146,176);
+      doc.text(`Generated on ${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})} · AutoGrade AI Evaluation System`, W/2, H-20, {align:'center'});
+
+      doc.save(`AutoGrade_Result_${studentName.replace(/ /g,'_')}_${resultData.test_title||'Test'}_${pct}pct.pdf`);
+    }
+
+    async function handleLogout(){try{await fetch('/logout',{method:'POST'});}catch(_){}window.location.href='/static/pages/login.html';}
+    loadResults();
+  </script>
+  <script src="/static/js/profile.js"></script>
+</body>
+</html>

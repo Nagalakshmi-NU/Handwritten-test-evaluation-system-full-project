@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Review Submission — AutoGrade</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/dashboard.css"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#0c0f1a;--surface:#131725;--surface2:#1a1f32;--border:#1e2538;--border2:#252d45;--accent:#4f8ef7;--accent2:#7c3aed;--text:#e8ecf5;--muted:#6b7496;--error:#f87171;--success:#34d399;--warning:#fbbf24}
+    body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 50% 40% at 5% 5%,rgba(79,142,247,.06) 0%,transparent 60%),radial-gradient(ellipse 40% 50% at 95% 95%,rgba(124,58,237,.06) 0%,transparent 60%);pointer-events:none;z-index:0}
+    nav{position:sticky;top:0;z-index:100;background:rgba(12,15,26,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 32px;height:60px;display:flex;align-items:center;justify-content:space-between}
+    .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+    .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+    .logo-text{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text);letter-spacing:-.5px}
+    .nav-links{display:flex;align-items:center;gap:8px}
+    .nav-link{color:var(--muted);text-decoration:none;font-size:14px;font-weight:500;padding:6px 12px;border-radius:8px;transition:color .2s,background .2s}
+    .nav-link:hover{color:var(--text);background:var(--surface)}
+    .nav-btn{background:var(--surface);border:1px solid var(--border);color:var(--muted);font-size:13px;font-family:'DM Sans',sans-serif;padding:6px 14px;border-radius:8px;cursor:pointer;transition:color .2s}
+    .nav-btn:hover{color:var(--error)}
+    .page{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:40px 24px 80px}
+    .back-link{display:inline-flex;align-items:center;gap:6px;color:var(--muted);text-decoration:none;font-size:13px;margin-bottom:20px;transition:color .2s}
+    .back-link:hover{color:var(--text)}
+    .review-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:32px;gap:16px;flex-wrap:wrap}
+    .review-header h1{font-family:'Syne',sans-serif;font-weight:700;font-size:26px;letter-spacing:-.5px;margin-bottom:4px}
+    .review-header p{font-size:14px;color:var(--muted)}
+    .publish-btn{padding:11px 24px;border:none;border-radius:10px;background:linear-gradient(135deg,var(--success),#059669);color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:opacity .2s;white-space:nowrap}
+    .publish-btn:hover{opacity:.9}.publish-btn:disabled{opacity:.5;cursor:not-allowed}
+    .score-summary{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 24px;margin-bottom:28px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+    .score-big{font-family:'Syne',sans-serif;font-weight:800;font-size:36px;letter-spacing:-1px;color:var(--accent)}
+    .score-label{font-size:13px;color:var(--muted);margin-top:2px}
+    .q-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:16px;animation:fadeUp .3s ease both}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    .q-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+    .q-label{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:var(--accent);background:rgba(79,142,247,.1);padding:4px 12px;border-radius:20px}
+    .confidence-badge{padding:3px 10px;border-radius:20px;font-size:12px;font-weight:500}
+    .confidence-badge.high{background:rgba(52,211,153,.12);color:var(--success)}
+    .confidence-badge.medium{background:rgba(251,191,36,.12);color:var(--warning)}
+    .confidence-badge.low{background:rgba(248,113,113,.12);color:var(--error)}
+    .q-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+    .q-section-label{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+    .q-text-box{background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:12px 14px;font-size:13.5px;line-height:1.6;min-height:80px}
+    .score-row{display:flex;align-items:center;gap:16px;margin-top:16px;flex-wrap:wrap}
+    .score-display{background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:10px 16px;font-family:'Syne',sans-serif;font-weight:700;font-size:18px;color:var(--accent)}
+    .score-override{display:flex;align-items:center;gap:8px}
+    .score-override label{font-size:13px;color:var(--muted)}
+    .score-override input{width:70px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--text);text-align:center;outline:none;transition:border-color .2s}
+    .score-override input:focus{border-color:var(--accent)}
+    .save-score-btn{padding:8px 16px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-family:'Syne',sans-serif;font-weight:600;font-size:13px;cursor:pointer;transition:opacity .2s}
+    .save-score-btn:hover{opacity:.85}.save-score-btn.saved{background:var(--success)}
+    .feedback-box{background:rgba(79,142,247,.05);border:1px solid rgba(79,142,247,.15);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--muted);margin-top:12px;line-height:1.6}
+    .feedback-box strong{color:var(--accent)}
+    .confirm-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center}
+    .confirm-overlay.show{display:flex}
+    .confirm-box{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:36px;max-width:420px;width:90%;text-align:center;animation:fadeUp .3s ease}
+    .confirm-box h3{font-family:'Syne',sans-serif;font-weight:700;font-size:20px;margin-bottom:8px}
+    .confirm-box p{font-size:14px;color:var(--muted);margin-bottom:28px;line-height:1.6}
+    .confirm-actions{display:flex;gap:12px;justify-content:center}
+    .confirm-yes{padding:11px 28px;border:none;border-radius:10px;background:linear-gradient(135deg,var(--success),#059669);color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:opacity .2s}
+    .confirm-yes:hover{opacity:.9}
+    .confirm-no{padding:11px 24px;border:1px solid var(--border2);border-radius:10px;background:var(--surface2);color:var(--text);font-family:'Syne',sans-serif;font-weight:600;font-size:14px;cursor:pointer;transition:border-color .2s}
+    .confirm-no:hover{border-color:var(--accent)}
+    .toast{position:fixed;bottom:24px;right:24px;background:var(--success);color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:500;z-index:300;transform:translateY(80px);opacity:0;transition:transform .3s,opacity .3s}
+    .toast.show{transform:translateY(0);opacity:1}
+    .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;margin-right:8px;vertical-align:middle}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media(max-width:640px){.q-grid{grid-template-columns:1fr}nav{padding:0 16px}.page{padding:24px 16px 60px}}
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/static/pages/teacher-dashboard.html" class="nav-logo"><div class="logo-icon">✦</div><span class="logo-text">AutoGrade</span></a>
+    <div class="nav-links">
+      <a href="/static/pages/queue.html" class="nav-link">Review Queue</a>
+      <div class="profile-wrap" onclick="toggleProfile()" id="profileWrap">
+        <div class="avatar teacher" id="profileAvatar"><div class="avatar-pulse"></div>T</div>
+        <div class="profile-info"><div class="profile-name" id="profileName">Teacher</div><div class="profile-role teacher">Teacher</div></div>
+        <div class="profile-dropdown" id="profileDropdown">
+          <div class="pd-header"><div class="pd-avatar teacher" id="pdAvatar">T</div><div><div class="pd-name" id="pdName">Teacher</div><div class="pd-email" id="pdEmail"></div><div class="pd-id" id="pdId"></div></div></div>
+          <div class="pd-body"><div class="pd-divider"></div><button class="pd-item pd-logout" onclick="handleLogout()">🚪 Logout</button></div>
+        </div>
+      </div>
+    </div>
+  </nav>
+  <div class="page">
+    <a href="/static/pages/queue.html" class="back-link">← Back to Queue</a>
+    <div class="review-header">
+      <div><h1 id="reviewTitle">Loading submission...</h1><p id="reviewMeta"></p></div>
+      <button class="publish-btn" id="publishBtn" onclick="showConfirm()">✓ Publish Results</button>
+    </div>
+    <div class="score-summary">
+      <div><div class="score-big" id="totalScore">—</div><div class="score-label">Total Score</div></div>
+      <div style="color:var(--muted);font-size:24px;font-weight:300">/</div>
+      <div><div class="score-big" style="color:var(--muted)" id="maxScore">—</div><div class="score-label">Maximum Marks</div></div>
+      <div style="margin-left:auto;font-size:13px;color:var(--muted)" id="studentMeta"></div>
+    </div>
+    <div id="questionsContainer"></div>
+  </div>
+
+  <!-- Confirm dialog -->
+  <div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-box">
+      <div style="font-size:36px;margin-bottom:12px">📢</div>
+      <h3>Publish Results?</h3>
+      <p>This will make the results visible to the student. You won't be able to edit scores after publishing.</p>
+      <div class="confirm-actions">
+        <button class="confirm-yes" onclick="confirmPublish()">Yes, Publish</button>
+        <button class="confirm-no" onclick="hideConfirm()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const urlParams=new URLSearchParams(window.location.search);
+    const submissionId=parseInt(urlParams.get('id'));
+    let submissionData=null;
+
+    function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+    function showConfirm(){document.getElementById('confirmOverlay').classList.add('show');}
+    function hideConfirm(){document.getElementById('confirmOverlay').classList.remove('show');}
+
+    function calcTotal(){
+      if(!submissionData)return 0;
+      return submissionData.questions.reduce((s,q)=>s+(q.override_score!==null&&q.override_score!==undefined?q.override_score:q.ai_score),0);
+    }
+
+    function renderQuestions(questions){
+      const container=document.getElementById('questionsContainer');
+      container.innerHTML=questions.map((q,i)=>{
+        const score=q.override_score!==null&&q.override_score!==undefined?q.override_score:q.ai_score;
+        const conf=q.confidence>=0.8?'high':q.confidence>=0.5?'medium':'low';
+        const confLabel=q.confidence>=0.8?'High Confidence':q.confidence>=0.5?'Medium Confidence':'Low Confidence — Review!';
+        return `<div class="q-card" style="animation-delay:${i*.06}s">
+          <div class="q-card-header">
+            <span class="q-label">Question ${q.question_number}</span>
+            <span class="confidence-badge ${conf}">🎯 ${confLabel}</span>
+          </div>
+          <div style="font-size:14px;font-weight:600;margin-bottom:14px">${q.question_text}</div>
+          <div class="q-grid">
+            <div><div class="q-section-label">Student's Answer (OCR)</div><div class="q-text-box">${q.ocr_text||'<em style="opacity:.5">No text detected</em>'}</div></div>
+            <div><div class="q-section-label">AI Feedback</div><div class="q-text-box">${q.feedback||'—'}</div></div>
+          </div>
+          <div class="score-row">
+            <div><div class="q-section-label">AI Score</div><div class="score-display">${q.ai_score} / ${q.max_marks}</div></div>
+            <div class="score-override">
+              <div>
+                <div class="q-section-label">Override Score</div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input type="number" id="override-${q.question_number}" value="${score}" min="0" max="${q.max_marks}" oninput="updateTotal()"/>
+                  <button class="save-score-btn" id="save-btn-${q.question_number}" onclick="saveScore(${q.question_number},${q.max_marks})">Save</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="feedback-box"><strong>AI Feedback:</strong> ${q.feedback||'No feedback available.'}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function updateTotal(){
+      if(!submissionData)return;
+      let total=0;
+      submissionData.questions.forEach(q=>{
+        const inp=document.getElementById(`override-${q.question_number}`);
+        const v=inp?parseFloat(inp.value):null;
+        total+=(!isNaN(v)&&v!==null)?v:(q.override_score!==null&&q.override_score!==undefined?q.override_score:q.ai_score);
+      });
+      document.getElementById('totalScore').textContent=total;
+    }
+
+    async function saveScore(qNum,maxMarks){
+      const inp=document.getElementById(`override-${qNum}`);
+      const btn=document.getElementById(`save-btn-${qNum}`);
+      let val=parseFloat(inp.value);
+      if(isNaN(val)||val<0)val=0;
+      if(val>maxMarks)val=maxMarks;
+      inp.value=val;
+      const q=submissionData.questions.find(q=>q.question_number===qNum);
+      if(q)q.override_score=val;
+      try{
+        await fetch('/review/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({submission_id:submissionId,question_number:qNum,override_score:val})});
+        btn.textContent='✓ Saved';btn.classList.add('saved');
+        setTimeout(()=>{btn.textContent='Save';btn.classList.remove('saved');},1500);
+        updateTotal();showToast('Score saved!');
+      }catch(err){showToast('Could not save score.');}
+    }
+
+    async function confirmPublish(){
+      hideConfirm();
+      const btn=document.getElementById('publishBtn');
+      btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Publishing...';
+      try{
+        const res=await fetch(`/publish/${submissionId}`,{method:'POST'});
+        if(res.ok){showToast('Results published! Student can now view their scores.');btn.textContent='✓ Published';btn.style.background='var(--success)';setTimeout(()=>window.location.href='/static/pages/queue.html',2000);}
+        else{showToast('Failed to publish.');btn.disabled=false;btn.textContent='✓ Publish Results';}
+      }catch(err){showToast('Network error.');btn.disabled=false;btn.textContent='✓ Publish Results';}
+    }
+
+    async function loadReview(){
+      try{
+        const res=await fetch(`/review/${submissionId}`);
+        if(res.status===401){window.location.href='/static/pages/login.html';return;}
+        const data=await res.json();submissionData=data;
+        document.getElementById('reviewTitle').textContent=`Reviewing: ${data.student_name}`;
+        document.getElementById('reviewMeta').textContent=`Test #${data.test_id} · Submitted ${new Date(data.uploaded_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}`;
+        document.getElementById('studentMeta').textContent=`Student: ${data.student_name}`;
+        const maxTotal=data.questions.reduce((s,q)=>s+q.max_marks,0);
+        document.getElementById('maxScore').textContent=maxTotal;
+        document.getElementById('totalScore').textContent=calcTotal();
+        if(data.status==='published'){const btn=document.getElementById('publishBtn');btn.textContent='✓ Published';btn.disabled=true;btn.style.background='var(--success)';}
+        renderQuestions(data.questions);
+      }catch(err){document.getElementById('reviewTitle').textContent='Could not load submission.';}
+    }
+
+    async function handleLogout(){try{await fetch('/logout',{method:'POST'});}catch(_){}window.location.href='/static/pages/login.html';}
+    loadReview();
+  </script>
+  <script src="/static/js/profile.js"></script>
+</body>
+</html>

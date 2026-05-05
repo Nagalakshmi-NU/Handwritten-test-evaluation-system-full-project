@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Review Queue — AutoGrade</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/dashboard.css"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#0c0f1a;--surface:#131725;--surface2:#1a1f32;--border:#1e2538;--border2:#252d45;--accent:#4f8ef7;--accent2:#7c3aed;--text:#e8ecf5;--muted:#6b7496;--error:#f87171;--success:#34d399;--warning:#fbbf24}
+    body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 50% 40% at 5% 5%,rgba(79,142,247,.06) 0%,transparent 60%),radial-gradient(ellipse 40% 50% at 95% 95%,rgba(124,58,237,.06) 0%,transparent 60%);pointer-events:none;z-index:0}
+    nav{position:sticky;top:0;z-index:100;background:rgba(12,15,26,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 32px;height:60px;display:flex;align-items:center;justify-content:space-between}
+    .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+    .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+    .logo-text{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text);letter-spacing:-.5px}
+    .nav-links{display:flex;align-items:center;gap:8px}
+    .nav-link{color:var(--muted);text-decoration:none;font-size:14px;font-weight:500;padding:6px 12px;border-radius:8px;transition:color .2s,background .2s}
+    .nav-link:hover{color:var(--text);background:var(--surface)}.nav-link.active{color:var(--accent)}
+    .nav-btn{background:var(--surface);border:1px solid var(--border);color:var(--muted);font-size:13px;font-family:'DM Sans',sans-serif;padding:6px 14px;border-radius:8px;cursor:pointer;transition:color .2s}
+    .nav-btn:hover{color:var(--error)}
+    .page{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:40px 24px 80px}
+    .page-top{margin-bottom:32px}
+    .page-top h1{font-family:'Syne',sans-serif;font-weight:700;font-size:28px;letter-spacing:-.5px;margin-bottom:4px}
+    .page-top p{font-size:14px;color:var(--muted)}
+    .filter-row{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+    .filter-btn{padding:7px 16px;border-radius:20px;border:1px solid var(--border);background:none;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all .2s}
+    .filter-btn:hover{border-color:var(--accent);color:var(--accent)}
+    .filter-btn.active{background:rgba(79,142,247,.1);border-color:var(--accent);color:var(--accent)}
+    .queue-table{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+    .table-header{display:grid;grid-template-columns:2fr 2fr 1.5fr 1fr 1fr;padding:12px 20px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
+    .table-row{display:grid;grid-template-columns:2fr 2fr 1.5fr 1fr 1fr;padding:14px 20px;border-bottom:1px solid var(--border);align-items:center;transition:background .2s;font-size:14px;animation:fadeIn .3s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+    .table-row:last-child{border-bottom:none}.table-row:hover{background:var(--surface2)}
+    .status-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:500}
+    .status-badge.pending{background:rgba(251,191,36,.12);color:var(--warning)}
+    .status-badge.processing{background:rgba(79,142,247,.12);color:var(--accent)}
+    .status-badge.llm_done{background:rgba(124,58,237,.12);color:#a78bfa}
+    .status-badge.reviewed{background:rgba(52,211,153,.12);color:var(--success)}
+    .status-badge.published{background:rgba(52,211,153,.18);color:var(--success)}
+    .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+    .review-link{color:var(--accent);text-decoration:none;font-size:13px;font-weight:500}
+    .review-link:hover{text-decoration:underline}
+    .empty-state{text-align:center;padding:48px 24px;color:var(--muted)}
+    .empty-icon{font-size:36px;margin-bottom:12px}
+    .empty-state h3{font-family:'Syne',sans-serif;font-size:16px;font-weight:600;margin-bottom:6px;color:var(--text)}
+    .empty-state p{font-size:14px}
+    .refresh-note{font-size:12px;color:var(--muted);text-align:right;margin-bottom:12px}
+    @media(max-width:700px){.table-header,.table-row{grid-template-columns:2fr 1.5fr 1fr}.table-header>*:nth-child(2),.table-row>*:nth-child(2),.table-header>*:nth-child(4),.table-row>*:nth-child(4){display:none}nav{padding:0 16px}.page{padding:24px 16px 60px}}
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/static/pages/teacher-dashboard.html" class="nav-logo"><div class="logo-icon">✦</div><span class="logo-text">AutoGrade</span></a>
+    <div class="nav-links">
+      <a href="/static/pages/teacher-dashboard.html" class="nav-link">Dashboard</a>
+      <a href="/static/pages/create-test.html" class="nav-link">Create Test</a>
+      <a href="/static/pages/queue.html" class="nav-link active">Review Queue</a>
+      <a href="/static/pages/teacher-students.html" class="nav-link">Students</a>
+      <div class="profile-wrap" onclick="toggleProfile()" id="profileWrap">
+        <div class="avatar teacher" id="profileAvatar"><div class="avatar-pulse"></div>T</div>
+        <div class="profile-info"><div class="profile-name" id="profileName">Teacher</div><div class="profile-role teacher">Teacher</div></div>
+        <div class="profile-dropdown" id="profileDropdown">
+          <div class="pd-header"><div class="pd-avatar teacher" id="pdAvatar">T</div><div><div class="pd-name" id="pdName">Teacher</div><div class="pd-email" id="pdEmail"></div></div></div>
+          <div class="pd-body"><div class="pd-divider"></div><button class="pd-item pd-logout" onclick="handleLogout()"><span class="pd-icon">🚪</span>Logout</button></div>
+        </div>
+      </div>
+    </div>
+  </nav>
+  <div class="page">
+    <div class="page-top"><h1>Review Queue</h1><p>All student submissions — filter by status and review AI-graded answers</p></div>
+    <div class="filter-row">
+      <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+      <button class="filter-btn" onclick="setFilter('llm_done',this)">Needs Review</button>
+      <button class="filter-btn" onclick="setFilter('pending',this)">Pending</button>
+      <button class="filter-btn" onclick="setFilter('processing',this)">Processing</button>
+      <button class="filter-btn" onclick="setFilter('published',this)">Published</button>
+    </div>
+    <div class="refresh-note" id="refreshNote">Auto-refreshes every 10s</div>
+    <div class="queue-table">
+      <div class="table-header"><span>Student</span><span>Test</span><span>Submitted</span><span>Status</span><span>Action</span></div>
+      <div id="queueBody"></div>
+    </div>
+  </div>
+  <script>
+    const STATUS_LABELS={pending:'Pending',processing:'Processing',llm_done:'AI Done',reviewed:'Reviewed',published:'Published'};
+    let allQueue=[];let currentFilter='all';
+    function formatDate(iso){const d=new Date(iso);return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'})+' · '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});}
+    function setFilter(filter,btn){
+      currentFilter=filter;
+      document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      renderQueue(allQueue);
+    }
+    function renderQueue(queue){
+      const filtered=currentFilter==='all'?queue:queue.filter(s=>s.status===currentFilter);
+      const body=document.getElementById('queueBody');
+      if(!filtered.length){body.innerHTML='<div class="empty-state"><div class="empty-icon">📭</div><h3>No submissions</h3><p>No submissions match this filter.</p></div>';return;}
+      body.innerHTML=filtered.map(sub=>`
+        <div class="table-row">
+          <span>${sub.student_name}</span>
+          <span style="color:var(--muted)">Test #${sub.test_id}</span>
+          <span style="color:var(--muted);font-size:13px">${formatDate(sub.uploaded_at)}</span>
+          <span><span class="status-badge ${sub.status}"><span class="dot"></span>${STATUS_LABELS[sub.status]||sub.status}</span></span>
+          <span>${sub.status==='llm_done'||sub.status==='reviewed'?`<a href="/static/pages/review.html?id=${sub.submission_id}" class="review-link">Review →</a>`:sub.status==='published'?'<span style="color:var(--success);font-size:13px">✓ Published</span>':'<span style="color:var(--muted);font-size:13px">Waiting…</span>'}</span>
+        </div>`).join('');
+    }
+    async function loadQueue(){
+      try{const res=await fetch('/queue');if(res.status===401){window.location.href='/static/pages/login.html';return;}const data=await res.json();allQueue=data.queue||[];renderQueue(allQueue);document.getElementById('refreshNote').textContent='Last updated: '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});}
+      catch(err){document.getElementById('queueBody').innerHTML='<div class="empty-state"><div class="empty-icon">⚠️</div><h3>Could not load queue</h3><p>Make sure you are logged in.</p></div>';}
+    }
+    async function handleLogout(){try{await fetch('/logout',{method:'POST'});}catch(_){}window.location.href='/static/pages/login.html';}
+    loadQueue();
+    setInterval(loadQueue,10000);
+  </script>
+  <script src="/static/js/profile.js"></script>
+</body>
+</html>

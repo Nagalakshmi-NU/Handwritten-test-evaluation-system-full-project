@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Tests — AutoGrade</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/dashboard.css"/>
+  <style>
+    .page-top{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:32px;flex-wrap:wrap;gap:16px}
+    .page-top h1{font-family:'Syne',sans-serif;font-weight:800;font-size:30px;letter-spacing:-.5px;margin-bottom:4px}
+    .page-top p{font-size:14px;color:var(--muted)}
+    .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:32px}
+    /* Notification bell */
+    .notif-wrap{position:relative}
+    .notif-btn{background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--text);width:38px;height:38px;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;transition:all .2s;position:relative}
+    .notif-btn:hover{background:rgba(79,142,247,.1);border-color:rgba(79,142,247,.3)}
+    .notif-badge{position:absolute;top:-6px;right:-6px;background:var(--error);color:#fff;font-size:10px;font-weight:700;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg);animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+    .notif-dropdown{position:absolute;top:48px;right:0;width:340px;background:rgba(10,13,26,.97);border:1px solid rgba(255,255,255,.1);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.5);z-index:200;display:none;backdrop-filter:blur(20px);overflow:hidden}
+    .notif-dropdown.show{display:block;animation:fadeDown .2s ease}
+    @keyframes fadeDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+    .notif-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.07)}
+    .notif-header span{font-family:'Syne',sans-serif;font-weight:700;font-size:14px}
+    .notif-mark-read{background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:500}
+    .notif-list{max-height:320px;overflow-y:auto}
+    .notif-item{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px;line-height:1.5;transition:background .2s;cursor:default}
+    .notif-item:hover{background:rgba(79,142,247,.05)}
+    .notif-item.unread{background:rgba(79,142,247,.06);border-left:3px solid var(--accent)}
+    .notif-time{font-size:11px;color:var(--muted);margin-top:4px}
+    .notif-empty{padding:32px;text-align:center;color:var(--muted);font-size:13px}
+    /* Tests grid */
+    .tests-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px}
+    .test-card{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:14px;transition:all .3s;animation:fadeUp .4s ease both}
+    .test-card:hover{border-color:rgba(79,142,247,.35);transform:translateY(-3px);box-shadow:0 12px 40px rgba(0,0,0,.3)}
+    .test-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+    .test-icon{width:44px;height:44px;border-radius:12px;flex-shrink:0;background:linear-gradient(135deg,rgba(79,142,247,.2),rgba(124,58,237,.2));display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 12px rgba(79,142,247,.2)}
+    .test-title{font-family:'Syne',sans-serif;font-weight:700;font-size:15px;line-height:1.3}
+    .test-meta{font-size:12px;color:var(--muted);margin-top:3px}
+    .status-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap}
+    .status-badge.not_submitted{background:rgba(107,116,150,.12);color:var(--muted);border:1px solid rgba(107,116,150,.2)}
+    .status-badge.pending{background:rgba(251,191,36,.12);color:var(--warning);border:1px solid rgba(251,191,36,.2)}
+    .status-badge.processing{background:rgba(79,142,247,.12);color:var(--accent);border:1px solid rgba(79,142,247,.2)}
+    .status-badge.llm_done{background:rgba(124,58,237,.12);color:#a78bfa;border:1px solid rgba(124,58,237,.2)}
+    .status-badge.reviewed{background:rgba(52,211,153,.12);color:var(--success);border:1px solid rgba(52,211,153,.2)}
+    .status-badge.published{background:rgba(52,211,153,.15);color:var(--success);border:1px solid rgba(52,211,153,.25)}
+    .dot{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block}
+    .test-card-footer{display:flex;gap:8px;margin-top:auto}
+    .upload-btn{flex:1;padding:10px;border:none;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;text-decoration:none;text-align:center;transition:all .2s;box-shadow:0 4px 12px rgba(79,142,247,.25)}
+    .upload-btn:hover{opacity:.9;transform:translateY(-1px)}
+    .results-btn{flex:1;padding:10px;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:rgba(255,255,255,.04);color:var(--text);font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;text-decoration:none;text-align:center;transition:all .2s}
+    .results-btn:hover{border-color:rgba(79,142,247,.4);background:rgba(79,142,247,.08)}
+    .results-btn.disabled{opacity:.35;pointer-events:none}
+    /* History table */
+    .history-cols{grid-template-columns:2fr 1fr 1fr 1fr 1fr}
+    .empty-state{grid-column:1/-1;text-align:center;padding:48px 24px;color:var(--muted)}
+    .empty-icon{font-size:40px;margin-bottom:12px}
+    .empty-state h3{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:6px;color:var(--text)}
+    @media(max-width:700px){.stats-row{grid-template-columns:1fr 1fr}.history-cols{grid-template-columns:2fr 1fr 1fr}.history-cols>*:nth-child(4),.history-cols>*:nth-child(5){display:none}}
+  </style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <nav>
+    <a href="/static/pages/student-dashboard.html" class="nav-logo"><div class="logo-icon">✦</div><span class="logo-text">AutoGrade</span></a>
+    <div class="nav-links">
+      <a href="/static/pages/student-dashboard.html" class="nav-link active">My Tests</a>
+      <a href="/static/pages/performance.html" class="nav-link">📈 Performance</a>
+      <div class="notif-wrap">
+        <button class="notif-btn" onclick="toggleNotif()" id="notifBtn">🔔<span class="notif-badge" id="notifCount" style="display:none">0</span></button>
+        <div class="notif-dropdown" id="notifDropdown">
+          <div class="notif-header"><span>🔔 Notifications</span><button class="notif-mark-read" onclick="markAllRead()">Mark all read</button></div>
+          <div class="notif-list" id="notifList"><div class="notif-empty">Loading...</div></div>
+        </div>
+      </div>
+      <div class="profile-wrap" onclick="toggleProfile()" id="profileWrap">
+        <div class="avatar student" id="profileAvatar"><div class="avatar-pulse"></div>S</div>
+        <div class="profile-info">
+          <div class="profile-name" id="profileName">Student</div>
+          <div class="profile-role student">Student</div>
+        </div>
+        <div class="profile-dropdown" id="profileDropdown">
+          <div class="pd-header">
+            <div class="pd-avatar student" id="pdAvatar">S</div>
+            <div><div class="pd-name" id="pdName">Student</div><div class="pd-email" id="pdEmail"></div><div class="pd-id" id="pdId"></div></div>
+          </div>
+          <div class="pd-body">
+            <div class="pd-divider"></div>
+            <button class="pd-item pd-logout" onclick="handleLogout()">
+              <span class="pd-icon">🚪</span>Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="page-top">
+      <div><h1>My Tests</h1><p>View your assigned tests and upload your answer sheets</p></div>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card" style="animation-delay:.05s"><div class="stat-label">Total Tests</div><div class="stat-value blue" id="statTotal">—</div></div>
+      <div class="stat-card" style="animation-delay:.1s"><div class="stat-label">Pending Upload</div><div class="stat-value yellow" id="statPending">—</div></div>
+      <div class="stat-card" style="animation-delay:.15s"><div class="stat-label">Results Available</div><div class="stat-value green" id="statResults">—</div></div>
+      <div class="stat-card" style="animation-delay:.2s"><div class="stat-label">Avg Score</div><div class="stat-value purple" id="statAvg">—</div></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('tests',this)">📋 My Tests</button>
+      <button class="tab" onclick="switchTab('history',this)">🕐 Attempt History</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-tests">
+      <div class="tests-grid" id="testsGrid"></div>
+    </div>
+
+    <div class="tab-panel" id="tab-history">
+      <div class="table-wrap">
+        <div class="table-header history-cols"><span>Test</span><span>Subject</span><span>Score</span><span>Status</span><span>Submitted</span></div>
+        <div id="historyBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STATUS_LABELS={not_submitted:'Not Submitted',pending:'Pending',processing:'Processing',llm_done:'AI Graded',reviewed:'Reviewed',published:'Result Ready'};
+
+    function switchTab(name,btn){
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-'+name).classList.add('active');
+    }
+
+    // ── Notifications ────────────────────────────────────────
+    let notifOpen = false;
+    function toggleNotif(){
+      notifOpen = !notifOpen;
+      document.getElementById('notifDropdown').classList.toggle('show', notifOpen);
+      if(notifOpen) loadNotifications();
+    }
+    document.addEventListener('click', e => {
+      if(!document.querySelector('.notif-wrap').contains(e.target)){
+        notifOpen = false;
+        document.getElementById('notifDropdown').classList.remove('show');
+      }
+    });
+    async function loadNotifications(){
+      try{
+        const res = await fetch('/student/notifications');
+        const data = await res.json();
+        const count = data.unread_count || 0;
+        const badge = document.getElementById('notifCount');
+        badge.style.display = count > 0 ? 'flex' : 'none';
+        badge.textContent = count > 9 ? '9+' : count;
+        const list = document.getElementById('notifList');
+        if(!data.notifications||!data.notifications.length){
+          list.innerHTML='<div class="notif-empty">🎉 No notifications yet</div>';return;
+        }
+        list.innerHTML = data.notifications.map(n=>`
+          <div class="notif-item ${n.is_read?'':'unread'}">
+            ${n.message}
+            <div class="notif-time">${timeAgo(n.created_at)}</div>
+          </div>`).join('');
+      }catch(e){}
+    }
+    async function markAllRead(){
+      await fetch('/student/notifications/read',{method:'POST'});
+      loadNotifications();
+    }
+    function timeAgo(iso){
+      const diff = (Date.now()-new Date(iso))/1000;
+      if(diff<60) return 'Just now';
+      if(diff<3600) return Math.floor(diff/60)+'m ago';
+      if(diff<86400) return Math.floor(diff/3600)+'h ago';
+      return new Date(iso).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+    }
+
+    // ── Tests ────────────────────────────────────────────────
+    function renderTests(tests){
+      const grid = document.getElementById('testsGrid');
+      if(!tests||!tests.length){
+        grid.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div><h3>No tests assigned yet</h3><p>Your teacher hasn\'t created any tests yet.</p></div>';
+        ['statTotal','statPending','statResults'].forEach(id=>document.getElementById(id).textContent='0');
+        return;
+      }
+      grid.innerHTML = tests.map((test,i)=>{
+        const status = test.submission_status||'not_submitted';
+        const canUpload = status==='not_submitted';
+        const canResults = status==='published';
+        return `<div class="test-card" style="animation-delay:${i*.05}s">
+          <div class="test-card-top">
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <div class="test-icon">📝</div>
+              <div><div class="test-title">${test.title}</div><div class="test-meta">Test #${test.test_id} · ${test.subject||'General'} · ${test.total_marks} marks</div></div>
+            </div>
+            <span class="status-badge ${status}"><span class="dot"></span>${STATUS_LABELS[status]||status}</span>
+          </div>
+          <div class="test-card-footer">
+            <a href="/test/${test.test_id}/download-sheet" class="results-btn" target="_blank">📄 Download Answer Sheet</a>
+            <a href="/static/pages/upload.html?test_id=${test.test_id}" class="upload-btn${!canUpload?' disabled':''}" style="${!canUpload?'opacity:.35;pointer-events:none':''}">⬆ Upload Answer</a>
+            <a href="/static/pages/results.html?id=${test.submission_id||''}" class="results-btn${!canResults?' disabled':''}">📊 Results</a>
+          </div>
+        </div>`;
+      }).join('');
+      document.getElementById('statTotal').textContent = tests.length;
+      document.getElementById('statPending').textContent = tests.filter(t=>!t.submission_status||t.submission_status==='not_submitted').length;
+      document.getElementById('statResults').textContent = tests.filter(t=>t.submission_status==='published').length;
+    }
+
+    // ── History ──────────────────────────────────────────────
+    function renderHistory(history){
+      const body = document.getElementById('historyBody');
+      if(!history||!history.length){body.innerHTML='<div class="empty-state"><div class="empty-icon">🕐</div><h3>No attempts yet</h3><p>Your submission history will appear here.</p></div>';return;}
+      body.innerHTML = history.map(h=>{
+        const pctColor = h.percentage>=80?'var(--success)':h.percentage>=60?'var(--accent)':h.percentage>=40?'var(--warning)':'var(--error)';
+        return `<div class="table-row history-cols">
+          <span style="font-weight:600">${h.test_title}</span>
+          <span style="color:var(--muted);font-size:13px">${h.subject||'—'}</span>
+          <span style="color:${h.percentage!==null?pctColor:'var(--muted)'};font-weight:600">${h.percentage!==null?h.score+'/'+h.max_marks+' ('+h.percentage+'%)':'—'}</span>
+          <span><span class="badge ${h.status}">${h.status}</span></span>
+          <span style="color:var(--muted);font-size:12px">${new Date(h.submitted_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span>
+        </div>`;
+      }).join('');
+    }
+
+    async function loadAll(){
+      try{
+        const [testRes, histRes, perfRes] = await Promise.all([
+          fetch('/student/tests'),
+          fetch('/student/history'),
+          fetch('/student/performance')
+        ]);
+        if(testRes.status===401){window.location.href='/static/pages/login.html';return;}
+        const testData = await testRes.json();
+        const histData = await histRes.json();
+        const perfData = await perfRes.json();
+        renderTests(testData.tests||[]);
+        renderHistory(histData.history||[]);
+        document.getElementById('statAvg').textContent = perfData.average_percentage>0?perfData.average_percentage+'%':'—';
+      }catch(err){
+        document.getElementById('testsGrid').innerHTML='<div class="empty-state"><div class="empty-icon">⚠️</div><h3>Could not load</h3><p>Make sure you are logged in.</p></div>';
+      }
+    }
+
+    async function handleLogout(){try{await fetch('/logout',{method:'POST'});}catch(_){}window.location.href='/static/pages/login.html';}
+    loadAll();
+    loadNotifications();
+    setInterval(loadNotifications, 30000);
+  </script>
+  <script src="/static/js/profile.js"></script>
+</body>
+</html>

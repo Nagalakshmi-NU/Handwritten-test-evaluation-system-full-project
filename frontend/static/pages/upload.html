@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Upload Answer Sheet — AutoGrade</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#0c0f1a;--surface:#131725;--surface2:#1a1f32;--border:#1e2538;--border2:#252d45;--accent:#4f8ef7;--accent2:#7c3aed;--text:#e8ecf5;--muted:#6b7496;--error:#f87171;--success:#34d399;--warning:#fbbf24}
+    body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 50% 40% at 10% 10%,rgba(79,142,247,.06) 0%,transparent 60%),radial-gradient(ellipse 40% 50% at 90% 80%,rgba(124,58,237,.06) 0%,transparent 60%);pointer-events:none;z-index:0}
+    nav{position:sticky;top:0;z-index:100;background:rgba(12,15,26,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 32px;height:60px;display:flex;align-items:center;justify-content:space-between}
+    .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+    .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+    .logo-text{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text);letter-spacing:-.5px}
+    .nav-links{display:flex;align-items:center;gap:8px}
+    .nav-link{color:var(--muted);text-decoration:none;font-size:14px;font-weight:500;padding:6px 12px;border-radius:8px;transition:color .2s,background .2s}
+    .nav-link:hover{color:var(--text);background:var(--surface)}
+    .nav-btn{background:var(--surface);border:1px solid var(--border);color:var(--muted);font-size:13px;font-family:'DM Sans',sans-serif;padding:6px 14px;border-radius:8px;cursor:pointer;transition:color .2s}
+    .nav-btn:hover{color:var(--error)}
+    .page{position:relative;z-index:1;max-width:640px;margin:0 auto;padding:40px 24px 80px}
+    .back-link{display:inline-flex;align-items:center;gap:6px;color:var(--muted);text-decoration:none;font-size:13px;margin-bottom:16px;transition:color .2s}
+    .back-link:hover{color:var(--text)}
+    .page-header{margin-bottom:32px}
+    .page-header h1{font-family:'Syne',sans-serif;font-weight:700;font-size:26px;letter-spacing:-.5px;margin-bottom:6px}
+    .page-header p{font-size:14px;color:var(--muted)}
+    .test-banner{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:24px;display:flex;align-items:center;gap:14px}
+    .test-banner-icon{font-size:28px}
+    .test-banner-title{font-family:'Syne',sans-serif;font-weight:700;font-size:15px}
+    .test-banner-meta{font-size:13px;color:var(--muted);margin-top:2px}
+    .upload-zone{border:2px dashed var(--border2);border-radius:16px;padding:48px 24px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;background:var(--surface);margin-bottom:20px;position:relative}
+    .upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);background:rgba(79,142,247,.04)}
+    .upload-zone.has-file{border-color:var(--success);background:rgba(52,211,153,.04)}
+    .upload-zone input[type="file"]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+    .upload-icon{font-size:40px;margin-bottom:14px}
+    .upload-title{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;margin-bottom:6px}
+    .upload-sub{font-size:13px;color:var(--muted)}
+    .upload-formats{font-size:12px;color:var(--muted);margin-top:8px;opacity:.7}
+    .file-preview{display:none;background:var(--surface2);border:1px solid var(--border2);border-radius:12px;padding:14px 16px;margin-bottom:20px;align-items:center;gap:12px}
+    .file-preview.show{display:flex;animation:fadeUp .3s ease}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    .file-thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--border)}
+    .file-info{flex:1}
+    .file-name{font-size:14px;font-weight:500}
+    .file-size{font-size:12px;color:var(--muted);margin-top:2px}
+    .file-remove{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:4px;transition:color .2s}
+    .file-remove:hover{color:var(--error)}
+    .submit-btn{width:100%;padding:14px;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:15px;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;transition:opacity .2s,transform .1s}
+    .submit-btn:hover{opacity:.9}.submit-btn:active{transform:scale(.99)}.submit-btn:disabled{opacity:.5;cursor:not-allowed}
+    .alert{padding:13px 16px;border-radius:12px;font-size:14px;margin-bottom:20px;display:none}
+    .alert.error{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.25);color:var(--error)}
+    .alert.show{display:block;animation:fadeUp .3s ease}
+    .status-tracker{display:none;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;margin-top:24px;text-align:center}
+    .status-tracker.show{display:block;animation:fadeUp .4s ease}
+    .status-tracker h3{font-family:'Syne',sans-serif;font-weight:700;font-size:18px;margin-bottom:6px}
+    .status-tracker p{font-size:14px;color:var(--muted);margin-bottom:28px}
+    .steps{display:flex;align-items:center;justify-content:center;margin-bottom:24px}
+    .step{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;position:relative}
+    .step:not(:last-child)::after{content:'';position:absolute;top:16px;left:55%;width:90%;height:2px;background:var(--border2);z-index:0;transition:background .4s}
+    .step.done:not(:last-child)::after{background:var(--success)}
+    .step-circle{width:32px;height:32px;border-radius:50%;border:2px solid var(--border2);background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--muted);position:relative;z-index:1;transition:all .3s}
+    .step.done .step-circle{background:var(--success);border-color:var(--success);color:#fff}
+    .step.active .step-circle{background:var(--accent);border-color:var(--accent);color:#fff;animation:pulse 1.5s infinite}
+    @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(79,142,247,.4)}50%{box-shadow:0 0 0 8px rgba(79,142,247,0)}}
+    .step-label{font-size:11px;color:var(--muted);font-weight:500;text-align:center}
+    .step.done .step-label{color:var(--success)}.step.active .step-label{color:var(--accent)}
+    .current-status-text{font-size:14px;color:var(--muted)}
+    .current-status-text span{color:var(--accent);font-weight:600}
+    .dashboard-btn{display:inline-flex;align-items:center;gap:8px;padding:11px 24px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);text-decoration:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:600;font-size:14px;margin-top:20px;transition:border-color .2s}
+    .dashboard-btn:hover{border-color:var(--accent)}
+    .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;margin-right:8px;vertical-align:middle}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media(max-width:600px){nav{padding:0 16px}.page{padding:24px 16px 60px}}
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/static/pages/student-dashboard.html" class="nav-logo"><div class="logo-icon">✦</div><span class="logo-text">AutoGrade</span></a>
+    <div class="nav-links">
+      <a href="/static/pages/student-dashboard.html" class="nav-link">My Tests</a>
+      <button class="nav-btn" onclick="handleLogout()">Logout</button>
+    </div>
+  </nav>
+  <div class="page">
+    <a href="/static/pages/student-dashboard.html" class="back-link">← Back to Dashboard</a>
+    <div class="page-header"><h1>Upload Answer Sheet</h1><p>Take a clear photo of your answer sheet and upload it below</p></div>
+    <div class="test-banner"><div class="test-banner-icon">📝</div><div><div class="test-banner-title" id="bannerTitle">Loading test...</div><div class="test-banner-meta" id="bannerMeta"></div></div></div>
+    <div class="alert error" id="errorAlert"></div>
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="fileInput" accept="image/*,.pdf" onchange="handleFileSelect(event)" multiple/>
+      <div class="upload-icon" id="uploadIcon">📎</div>
+      <div class="upload-title" id="uploadTitle">Drop your file here</div>
+      <div class="upload-sub" id="uploadSub">or click to browse your files</div>
+      <div class="upload-formats">Supported: JPG, PNG, JPEG, PDF · Max 10MB · Multiple pages supported</div>
+    </div>
+    <div class="file-preview" id="filePreview">
+      <img class="file-thumb" id="fileThumb" src="" alt="preview"/>
+      <div class="file-info"><div class="file-name" id="fileName"></div><div class="file-size" id="fileSize"></div></div>
+      <button class="file-remove" onclick="removeFile()">✕</button>
+    </div>
+    <button class="submit-btn" id="submitBtn" onclick="handleUpload()">Submit Answer Sheet</button>
+    <div class="status-tracker" id="statusTracker">
+      <h3>Submission Received!</h3>
+      <p>Your answer sheet is being processed. This page will auto-update every 3 seconds.</p>
+      <div class="steps">
+        <div class="step" id="step-pending"><div class="step-circle">1</div><div class="step-label">Uploaded</div></div>
+        <div class="step" id="step-processing"><div class="step-circle">2</div><div class="step-label">OCR</div></div>
+        <div class="step" id="step-llm_done"><div class="step-circle">3</div><div class="step-label">AI Graded</div></div>
+        <div class="step" id="step-reviewed"><div class="step-circle">4</div><div class="step-label">Review</div></div>
+        <div class="step" id="step-published"><div class="step-circle">5</div><div class="step-label">Published</div></div>
+      </div>
+      <div class="current-status-text">Current status: <span id="currentStatusText">Pending</span></div>
+      <!-- Step descriptions -->
+      <div id="stepDesc" style="margin-top:20px;background:rgba(79,142,247,.06);border:1px solid rgba(79,142,247,.15);border-radius:12px;padding:16px;font-size:13px;color:var(--muted);line-height:1.6;text-align:left"></div>
+      <a href="/static/pages/student-dashboard.html" class="dashboard-btn" style="margin-top:16px">Back to Dashboard</a>
+    </div>
+  </div>
+  <script>
+    const urlParams=new URLSearchParams(window.location.search);
+    const testId=urlParams.get('test_id');
+    let selectedFiles=[],pollInterval=null,submissionId=null;
+    const STATUS_ORDER=['pending','processing','llm_done','reviewed','published'];
+    const STATUS_LABELS={
+      pending:'Uploaded — waiting to process',
+      processing:'Running OCR on your answer sheet...',
+      llm_done:'AI has graded your answers',
+      reviewed:'Teacher is reviewing your answers',
+      published:'Results are ready!'
+    };
+    const STATUS_DESC={
+      pending:'<b>Step 1 — Upload Complete</b><br>Your answer sheet has been received. The system will now extract text from your handwritten answers using OCR technology.',
+      processing:'<b>Step 2 — OCR Processing</b><br>The system is scanning your answer sheet image, detecting ArUco markers for alignment, and extracting your handwritten text using Optical Character Recognition (OCR).',
+      llm_done:'<b>Step 3 — AI Evaluation Complete</b><br>The AI has evaluated your answers against the model answers and rubric. Scores and feedback have been generated. Waiting for teacher review.',
+      reviewed:'<b>Step 4 — Teacher Review</b><br>Your teacher is reviewing the AI-generated scores and may override them if needed. Results will be published once the teacher approves.',
+      published:'<b>Step 5 — Results Published!</b><br>Your teacher has published your results. You can now view your scores, feedback, and download your result certificate.'
+    };
+    window.addEventListener('DOMContentLoaded', async ()=>{
+      if(!testId){document.getElementById('bannerTitle').textContent='No test selected';return;}
+      // Load test info
+      try{
+        const res = await fetch(`/student/test/${testId}/questions`);
+        const data = await res.json();
+        document.getElementById('bannerTitle').textContent = data.title || `Test #${testId}`;
+        document.getElementById('bannerMeta').textContent = `${data.subject||''} · ${data.total_marks} marks · ${data.questions.length} questions`;
+        // Show view question paper button
+        const qpBtn = document.createElement('a');
+        qpBtn.href = `/test/${testId}/view-paper/question`;
+        qpBtn.target = '_blank';
+        qpBtn.textContent = '📄 View Question Paper';
+        qpBtn.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:rgba(79,142,247,.1);border:1px solid rgba(79,142,247,.2);color:var(--accent);border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;margin-top:10px;transition:all .2s';
+        document.querySelector('.test-banner').appendChild(qpBtn);
+      }catch(e){
+        document.getElementById('bannerTitle').textContent=`Test #${testId}`;
+        document.getElementById('bannerMeta').textContent='Upload your handwritten answer sheet below';
+      }
+    });
+    const zone=document.getElementById('uploadZone');
+    zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('dragover');});
+    zone.addEventListener('dragleave',()=>zone.classList.remove('dragover'));
+    zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('dragover');const files=[...e.dataTransfer.files];if(files.length)processFiles(files);});
+    function handleFileSelect(e){const files=[...e.target.files];if(files.length)processFiles(files);}
+    function processFiles(files){
+      const allowed=['image/jpeg','image/jpg','image/png','application/pdf'];
+      for(const file of files){
+        if(!allowed.includes(file.type)){showError(`Invalid file type: ${file.name}`);return;}
+        if(file.size>10*1024*1024){showError(`File too large: ${file.name}. Max 10MB.`);return;}
+      }
+      selectedFiles=files;hideError();
+      document.getElementById('fileName').textContent=files.length===1?files[0].name:`${files.length} files selected (${files.map(f=>f.name).join(', ')})`;
+      document.getElementById('fileSize').textContent=files.map(f=>(f.size/1024).toFixed(1)+' KB').join(' + ');
+      document.getElementById('filePreview').classList.add('show');
+      const isPDF=files[0].type==='application/pdf';
+      if(!isPDF){
+        document.getElementById('fileThumb').style.display='block';
+        const reader=new FileReader();reader.onload=e=>{document.getElementById('fileThumb').src=e.target.result;};reader.readAsDataURL(files[0]);
+      } else {
+        document.getElementById('fileThumb').style.display='none';
+      }
+      zone.classList.add('has-file');
+      document.getElementById('uploadIcon').textContent='✅';
+      document.getElementById('uploadTitle').textContent=files.length>1?`${files.length} pages selected!`:isPDF?'PDF selected!':'Image selected!';
+      document.getElementById('uploadSub').textContent='Click Submit to upload';
+    }
+    function removeFile(){
+      selectedFiles=[];
+      document.getElementById('fileInput').value='';
+      document.getElementById('filePreview').classList.remove('show');
+      document.getElementById('fileThumb').style.display='block';
+      document.getElementById('fileThumb').src='';
+      zone.classList.remove('has-file');
+      document.getElementById('uploadIcon').textContent='📎';
+      document.getElementById('uploadTitle').textContent='Drop your file here';
+      document.getElementById('uploadSub').textContent='or click to browse your files';
+      hideError();
+    }
+    function showError(msg){const el=document.getElementById('errorAlert');el.textContent=msg;el.classList.add('show');}
+    function hideError(){document.getElementById('errorAlert').classList.remove('show');}
+    function updateSteps(status){
+      const idx=STATUS_ORDER.indexOf(status);
+      document.getElementById('currentStatusText').textContent=STATUS_LABELS[status]||status;
+      STATUS_ORDER.forEach((s,i)=>{const el=document.getElementById(`step-${s}`);if(!el)return;el.classList.remove('done','active');if(i<idx)el.classList.add('done');else if(i===idx)el.classList.add('active');});
+      const desc=document.getElementById('stepDesc');
+      if(desc) desc.innerHTML=STATUS_DESC[status]||'';
+      if(status==='published') document.getElementById('stepDesc').style.borderColor='rgba(52,211,153,.3)';
+    }
+    function startPolling(){
+      if(!submissionId)return;
+      pollInterval=setInterval(async()=>{
+        try{const res=await fetch(`/submission/status/${submissionId}`);const data=await res.json();updateSteps(data.status);
+          if(data.status==='published'){clearInterval(pollInterval);setTimeout(()=>{window.location.href=`/static/pages/results.html?id=${submissionId}`;},2000);}
+        }catch(_){}
+      },3000);
+    }
+    async function handleUpload(){
+      hideError();
+      if(!testId){showError('No test ID. Go back and select a test.');return;}
+      if(!selectedFiles.length){showError('Please select a file first.');return;}
+      const btn=document.getElementById('submitBtn');
+      btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Uploading...';
+      try{
+        const formData=new FormData();
+        formData.append('test_id',testId);
+        for(const file of selectedFiles) formData.append('image',file);
+        const res=await fetch('/submit',{method:'POST',body:formData});
+        const data=await res.json();
+        if(res.ok){
+          submissionId=data.submission_id;
+          document.getElementById('uploadZone').style.display='none';document.getElementById('filePreview').style.display='none';document.getElementById('submitBtn').style.display='none';
+          document.getElementById('statusTracker').classList.add('show');
+          updateSteps('pending');startPolling();
+        }else{showError(data.error||'Upload failed.');btn.disabled=false;btn.textContent='Submit Answer Sheet';}
+      }catch(err){showError('Network error.');btn.disabled=false;btn.textContent='Submit Answer Sheet';}
+    }
+    async function handleLogout(){try{await fetch('/logout',{method:'POST'});}catch(_){}window.location.href='/static/pages/login.html';}
+  </script>
+</body>
+</html>

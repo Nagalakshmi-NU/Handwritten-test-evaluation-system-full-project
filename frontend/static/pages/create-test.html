@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Create Test — AutoGrade</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/dashboard.css"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#0c0f1a;--surface:#131725;--surface2:#1a1f32;--border:#1e2538;--border2:#252d45;--accent:#4f8ef7;--accent2:#7c3aed;--text:#e8ecf5;--muted:#6b7496;--error:#f87171;--success:#34d399}
+    body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 50% 40% at 10% 10%,rgba(79,142,247,.06) 0%,transparent 60%),radial-gradient(ellipse 40% 50% at 90% 80%,rgba(124,58,237,.06) 0%,transparent 60%);pointer-events:none;z-index:0}
+    nav{position:sticky;top:0;z-index:100;background:rgba(12,15,26,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 32px;height:60px;display:flex;align-items:center;justify-content:space-between}
+    .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+    .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+    .logo-text{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text);letter-spacing:-.5px}
+    .nav-links{display:flex;align-items:center;gap:8px}
+    .nav-link{color:var(--muted);text-decoration:none;font-size:14px;font-weight:500;padding:6px 12px;border-radius:8px;transition:color .2s,background .2s}
+    .nav-link:hover{color:var(--text);background:var(--surface)}.nav-link.active{color:var(--accent)}
+    .nav-btn{background:var(--surface);border:1px solid var(--border);color:var(--muted);font-size:13px;font-family:'DM Sans',sans-serif;padding:6px 14px;border-radius:8px;cursor:pointer;transition:color .2s}
+    .nav-btn:hover{color:var(--error)}
+    .page{position:relative;z-index:1;max-width:820px;margin:0 auto;padding:40px 24px 80px}
+    .page-header{margin-bottom:32px}
+    .page-header h1{font-family:'Syne',sans-serif;font-weight:700;font-size:28px;letter-spacing:-.5px;margin-bottom:6px}
+    .page-header p{font-size:14px;color:var(--muted)}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:16px}
+    .section-label{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-bottom:16px}
+    .field{margin-bottom:16px}.field:last-child{margin-bottom:0}
+    label{display:block;font-size:13px;font-weight:500;color:var(--muted);margin-bottom:7px}
+    input[type="text"],input[type="number"],textarea,select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px 14px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s;resize:vertical}
+    input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,142,247,.1)}
+    input::placeholder,textarea::placeholder{color:var(--muted);opacity:.5}
+    textarea{min-height:80px}
+    select option{background:var(--surface)}
+    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+    .question-block{background:var(--surface2);border:1px solid var(--border2);border-radius:14px;padding:22px;margin-bottom:14px;animation:fadeIn .3s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .q-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    .q-number{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:var(--accent);background:rgba(79,142,247,.1);padding:4px 12px;border-radius:20px}
+    .q-remove{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:4px;border-radius:6px;transition:color .2s}
+    .q-remove:hover{color:var(--error);background:rgba(248,113,113,.1)}
+    .rubric-list{margin-top:4px}
+    .rubric-item{display:flex;gap:8px;margin-bottom:8px}
+    .rubric-item input{flex:1;padding:9px 12px;font-size:13px}
+    .rubric-remove{background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);cursor:pointer;padding:0 10px;font-size:16px;transition:color .2s,border-color .2s;flex-shrink:0}
+    .rubric-remove:hover{color:var(--error);border-color:var(--error)}
+    .add-rubric-btn{background:none;border:1px dashed var(--border2);border-radius:8px;color:var(--muted);font-size:13px;font-family:'DM Sans',sans-serif;padding:7px 14px;cursor:pointer;width:100%;transition:color .2s,border-color .2s;margin-top:4px}
+    .add-rubric-btn:hover{color:var(--accent);border-color:var(--accent)}
+    .add-question-btn{width:100%;padding:14px;background:none;border:1px dashed var(--border2);border-radius:14px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:600;font-size:14px;cursor:pointer;transition:color .2s,border-color .2s,background .2s;margin-bottom:20px}
+    .add-question-btn:hover{color:var(--accent);border-color:var(--accent);background:rgba(79,142,247,.04)}
+    .submit-btn{width:100%;padding:14px;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:15px;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;transition:opacity .2s,transform .1s;margin-bottom:12px}
+    .submit-btn:hover{opacity:.9}.submit-btn:active{transform:scale(.99)}.submit-btn:disabled{opacity:.5;cursor:not-allowed}
+    .alert{padding:13px 16px;border-radius:12px;font-size:14px;margin-bottom:20px;display:none}
+    .alert.error{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.25);color:var(--error)}
+    .alert.success{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);color:var(--success)}
+    .alert.show{display:block;animation:fadeIn .3s ease}
+    .success-panel{display:none;background:var(--surface);border:1px solid rgba(52,211,153,.3);border-radius:16px;padding:32px;text-align:center;margin-top:24px}
+    .success-panel.show{display:block;animation:fadeIn .4s ease}
+    .success-panel h3{font-family:'Syne',sans-serif;font-weight:700;font-size:20px;margin-bottom:6px}
+    .success-panel p{color:var(--muted);font-size:14px;margin-bottom:24px}
+    .btn-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+    .download-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;text-decoration:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:600;font-size:14px;transition:opacity .2s;border:none;cursor:pointer}
+    .download-btn:hover{opacity:.9}
+    .outline-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);text-decoration:none;border-radius:10px;font-family:'Syne',sans-serif;font-weight:600;font-size:14px;transition:border-color .2s;cursor:pointer}
+    .outline-btn:hover{border-color:var(--accent)}
+    .marks-badge{display:inline-block;background:rgba(79,142,247,.1);color:var(--accent);font-size:12px;font-weight:600;padding:2px 8px;border-radius:20px;margin-left:8px}
+    .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;margin-right:8px;vertical-align:middle}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .hint{font-size:12px;color:var(--muted);margin-top:4px}
+    @media(max-width:600px){.two-col,.three-col{grid-template-columns:1fr}nav{padding:0 16px}.page{padding:24px 16px 60px}}
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/static/pages/teacher-dashboard.html" class="nav-logo"><div class="logo-icon">✦</div><span class="logo-text">AutoGrade</span></a>
+    <div class="nav-links">
+      <a href="/static/pages/teacher-dashboard.html" class="nav-link">Dashboard</a>
+      <a href="/static/pages/create-test.html" class="nav-link active">Create Test</a>
+      <a href="/static/pages/queue.html" class="nav-link">Review Queue</a>
+      <a href="/static/pages/teacher-students.html" class="nav-link">Students</a>
+      <div class="profile-wrap" onclick="toggleProfile()" id="profileWrap">
+        <div class="avatar teacher" id="profileAvatar"><div class="avatar-pulse"></div>T</div>
+        <div class="profile-info"><div class="profile-name" id="profileName">Teacher</div><div class="profile-role teacher">Teacher</div></div>
+        <div class="profile-dropdown" id="profileDropdown">
+          <div class="pd-header"><div class="pd-avatar teacher" id="pdAvatar">T</div><div><div class="pd-name" id="pdName">Teacher</div><div class="pd-email" id="pdEmail"></div><div class="pd-id" id="pdId"></div></div></div>
+          <div class="pd-body"><div class="pd-divider"></div><button class="pd-item pd-logout" onclick="handleLogout()">🚪 Logout</button></div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="page-header"><h1>Create a New Test</h1><p>Fill in test details, layout settings, and questions.</p></div>
+    <div class="alert error" id="errorAlert"></div>
+    <div class="alert success" id="successAlert"></div>
+
+    <!-- Test Details -->
+    <div class="card">
+      <div class="section-label">📋 Test Details</div>
+      <div class="two-col">
+        <div class="field"><label>Test Title</label><input type="text" id="testTitle" placeholder="e.g. Physics Unit 1 — Newton's Laws"/></div>
+        <div class="field"><label>Subject</label><input type="text" id="testSubject" placeholder="e.g. Physics"/></div>
+      </div>
+    </div>
+
+    <!-- Exam Layout -->
+    <div class="card">
+      <div class="section-label">📄 Exam Layout Settings</div>
+      <div class="three-col">
+        <div class="field"><label>Page Size</label><select id="pageSize"><option value="A4" selected>A4</option><option value="A3">A3</option></select></div>
+        <div class="field"><label>Orientation</label><select id="orientation"><option value="portrait" selected>Portrait</option><option value="landscape">Landscape</option></select></div>
+        <div class="field"><label>Margin (pts)</label><input type="number" id="margin" value="40" min="10" max="100"/><div class="hint">1 inch = 72 pts. Default: 40</div></div>
+      </div>
+    </div>
+
+    <!-- ArUco Settings -->
+    <div class="card">
+      <div class="section-label">🔲 ArUco Marker Settings</div>
+      <div class="three-col">
+        <div class="field"><label>Dictionary Type</label><select id="arucoDict"><option value="DICT_4X4_50" selected>DICT_4X4_50 (recommended)</option><option value="DICT_4X4_100">DICT_4X4_100</option><option value="DICT_5X5_50">DICT_5X5_50</option><option value="DICT_6X6_50">DICT_6X6_50</option></select></div>
+        <div class="field"><label>Marker Size (pts)</label><input type="number" id="arucoSize" value="30" min="20" max="80"/><div class="hint">Size of each corner marker</div></div>
+        <div class="field"><label>Starting Marker ID</label><input type="number" id="arucoStartId" value="0" min="0" max="46"/><div class="hint">4 markers used: ID to ID+3</div></div>
+      </div>
+      <div class="field" style="margin-top:4px"><label>Marker Position</label><select id="arucoPosition" disabled><option value="corners" selected>4 Corners (recommended)</option></select><div class="hint">Corners placement required for ArUco alignment</div></div>
+    </div>
+
+    <!-- Questions -->
+    <div class="section-label" style="padding:0 4px;margin-bottom:12px">❓ Questions <span class="marks-badge" id="totalMarksLabel">0 total marks</span></div>
+    <div id="questionsContainer"></div>
+    <button class="add-question-btn" onclick="addQuestion()">＋ Add Question</button>
+
+    <button class="submit-btn" id="submitBtn" onclick="handleSubmit()">🚀 Generate Test &amp; Answer Sheet PDF</button>
+
+    <!-- Success Panel -->
+    <div class="success-panel" id="successPanel">
+      <div style="font-size:40px;margin-bottom:12px">🎉</div>
+      <h3>Test Created!</h3>
+      <p id="successMsg">Your answer sheet PDF is ready to download.</p>
+      <div class="btn-row">
+        <a href="#" id="downloadLink" class="download-btn" target="_blank">⬇ Download Answer Sheet PDF</a>
+        <a href="#" id="downloadJsonLink" class="outline-btn" download>📄 Download Marker Metadata (JSON)</a>
+        <a href="/static/pages/teacher-dashboard.html" class="outline-btn">← Dashboard</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let questionCount = 0;
+    let lastBoundingBoxes = [];
+
+    window.addEventListener('DOMContentLoaded', () => addQuestion());
+
+    function addQuestion() {
+      questionCount++;
+      const n = questionCount;
+      const block = document.createElement('div');
+      block.className = 'question-block'; block.id = `q-block-${n}`;
+      block.innerHTML = `
+        <div class="q-header">
+          <span class="q-number">Question ${n}</span>
+          <button class="q-remove" onclick="removeQuestion(${n})">✕</button>
+        </div>
+        <div class="field"><label>Question Text</label><input type="text" id="q-text-${n}" placeholder="e.g. What is Newton's Second Law?"/></div>
+        <div class="field"><label>Model Answer</label><textarea id="q-answer-${n}" placeholder="Write the ideal answer here..."></textarea></div>
+        <div class="three-col">
+          <div class="field"><label>Max Marks</label><input type="number" id="q-marks-${n}" placeholder="5" min="1" oninput="updateTotalMarks()"/></div>
+          <div class="field"><label>Question Number</label><input type="number" id="q-num-${n}" value="${n}" min="1"/></div>
+          <div class="field"><label>Answer Box Height (pts)</label><input type="number" id="q-boxh-${n}" value="120" min="60" max="400"/><div class="hint">Default 120 pts ≈ 4cm</div></div>
+        </div>
+        <div class="field">
+          <label>Answer Type</label>
+          <select id="q-type-${n}">
+            <option value="paragraph">Paragraph</option>
+            <option value="short">Short Answer</option>
+            <option value="mcq">MCQ</option>
+          </select>
+        </div>
+        <div class="field"><label>Rubric Points</label><div class="rubric-list" id="rubric-list-${n}"></div><button class="add-rubric-btn" onclick="addRubricPoint(${n})">＋ Add rubric point</button></div>`;
+      document.getElementById('questionsContainer').appendChild(block);
+      addRubricPoint(n); updateTotalMarks();
+    }
+
+    function removeQuestion(n) {
+      const b = document.getElementById(`q-block-${n}`);
+      if(b) { b.style.opacity='0'; b.style.transition='opacity .2s'; setTimeout(()=>{b.remove();updateTotalMarks();},200); }
+    }
+
+    function addRubricPoint(n) {
+      const list = document.getElementById(`rubric-list-${n}`);
+      const item = document.createElement('div'); item.className = 'rubric-item';
+      item.innerHTML = '<input type="text" placeholder="e.g. Mentions F=ma: 2 pts"/><button class="rubric-remove" onclick="this.parentElement.remove()">✕</button>';
+      list.appendChild(item);
+    }
+
+    function updateTotalMarks() {
+      let t = 0;
+      document.querySelectorAll('[id^="q-marks-"]').forEach(el => { const v = parseFloat(el.value); if(!isNaN(v)) t += v; });
+      document.getElementById('totalMarksLabel').textContent = `${t} total mark${t!==1?'s':''}`;
+    }
+
+    function showAlert(type, msg) {
+      const el = document.getElementById(type==='error'?'errorAlert':'successAlert');
+      const other = document.getElementById(type==='error'?'successAlert':'errorAlert');
+      other.classList.remove('show'); el.textContent = msg; el.classList.add('show');
+      el.scrollIntoView({behavior:'smooth',block:'center'});
+    }
+
+    function collectPayload() {
+      const title = document.getElementById('testTitle').value.trim();
+      const subject = document.getElementById('testSubject').value.trim();
+      if(!title) { showAlert('error','Please enter a test title.'); return null; }
+
+      const blocks = document.querySelectorAll('.question-block');
+      if(!blocks.length) { showAlert('error','Please add at least one question.'); return null; }
+
+      const questions = [];
+      for(const block of blocks) {
+        const id = block.id.replace('q-block-','');
+        const qText   = document.getElementById(`q-text-${id}`).value.trim();
+        const qAnswer = document.getElementById(`q-answer-${id}`).value.trim();
+        const qMarks  = parseFloat(document.getElementById(`q-marks-${id}`).value);
+        const qNum    = parseInt(document.getElementById(`q-num-${id}`).value);
+        const boxH    = parseInt(document.getElementById(`q-boxh-${id}`).value) || 120;
+        if(!qText)   { showAlert('error',`Q${qNum}: Question text required.`); return null; }
+        if(!qAnswer) { showAlert('error',`Q${qNum}: Model answer required.`); return null; }
+        if(isNaN(qMarks)||qMarks<1) { showAlert('error',`Q${qNum}: Max marks must be ≥ 1.`); return null; }
+        const rubric = [];
+        block.querySelectorAll('.rubric-item input').forEach(inp => { const v=inp.value.trim(); if(v) rubric.push(v); });
+        if(!rubric.length) { showAlert('error',`Q${qNum}: Add at least one rubric point.`); return null; }
+        questions.push({ question_number:qNum, question_text:qText, model_answer:qAnswer, max_marks:qMarks, box_height:boxH, rubric });
+      }
+
+      return {
+        title, subject,
+        template: {
+          page_size:      document.getElementById('pageSize').value,
+          orientation:    document.getElementById('orientation').value,
+          margin:         parseInt(document.getElementById('margin').value) || 40,
+          aruco_size:     parseInt(document.getElementById('arucoSize').value) || 30,
+          aruco_dict:     document.getElementById('arucoDict').value,
+          aruco_start_id: parseInt(document.getElementById('arucoStartId').value) || 0,
+        },
+        questions
+      };
+    }
+
+    async function handleSubmit() {
+      document.getElementById('errorAlert').classList.remove('show');
+      const payload = collectPayload(); if(!payload) return;
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Generating PDF...';
+      try {
+        const res  = await fetch('/test/create', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+        const data = await res.json();
+        if(res.ok) {
+          lastBoundingBoxes = data.bounding_boxes || [];
+          document.getElementById('successMsg').textContent = `Test #${data.test_id} created · ${data.total_marks} total marks`;
+          document.getElementById('downloadLink').href = data.pdf_url;
+          const meta = {
+            test_id: data.test_id, title: payload.title,
+            template: payload.template, bounding_boxes: lastBoundingBoxes,
+            aruco_marker_ids: Array.from({length:4},(_,i)=>payload.template.aruco_start_id+i)
+          };
+          const blob = new Blob([JSON.stringify(meta, null, 2)], {type:'application/json'});
+          document.getElementById('downloadJsonLink').href = URL.createObjectURL(blob);
+          document.getElementById('downloadJsonLink').download = `test_${data.test_id}_metadata.json`;
+          document.getElementById('successPanel').classList.add('show');
+          document.getElementById('successPanel').scrollIntoView({behavior:'smooth',block:'center'});
+          btn.style.display = 'none';
+        } else {
+          showAlert('error', data.error || 'Failed to create test.');
+          btn.disabled = false; btn.textContent = '🚀 Generate Test & Answer Sheet PDF';
+        }
+      } catch(err) {
+        showAlert('error','Network error.');
+        btn.disabled = false; btn.textContent = '🚀 Generate Test & Answer Sheet PDF';
+      }
+    }
+
+    async function handleLogout() { try{await fetch('/logout',{method:'POST'});}catch(_){} window.location.href='/static/pages/login.html'; }
+  </script>
+  <script src="/static/js/profile.js"></script>
+</body>
+</html>

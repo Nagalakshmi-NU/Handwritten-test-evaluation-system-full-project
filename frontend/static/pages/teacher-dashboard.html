@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Teacher Dashboard — AutoGrade</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/dashboard.css"/>
+  <style>
+    .page-top{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:36px;flex-wrap:wrap;gap:16px}
+    .page-top h1{font-family:'Syne',sans-serif;font-weight:800;font-size:30px;letter-spacing:-.5px;margin-bottom:4px}
+    .page-top p{font-size:14px;color:var(--muted)}
+    .create-btn{display:flex;align-items:center;gap:8px;padding:12px 24px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;text-decoration:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;transition:all .2s;box-shadow:0 4px 20px rgba(79,142,247,.3)}
+    .create-btn:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(79,142,247,.4)}
+    .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:32px}
+    .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+    .view-all{color:var(--accent);font-size:13px;text-decoration:none;font-weight:500;padding:5px 12px;border-radius:8px;background:rgba(79,142,247,.08);border:1px solid rgba(79,142,247,.15);transition:all .2s}
+    .view-all:hover{background:rgba(79,142,247,.15)}
+    .queue-table{border-radius:18px;overflow:hidden;margin-bottom:32px;animation:fadeUp .4s ease .2s both}
+    .t-cols{grid-template-columns:2fr 2fr 1.5fr 1fr 1fr}
+    .status-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
+    .status-badge.pending{background:rgba(251,191,36,.12);color:var(--warning);border:1px solid rgba(251,191,36,.2)}
+    .status-badge.processing{background:rgba(79,142,247,.12);color:var(--accent);border:1px solid rgba(79,142,247,.2)}
+    .status-badge.llm_done{background:rgba(124,58,237,.12);color:#a78bfa;border:1px solid rgba(124,58,237,.2)}
+    .status-badge.reviewed{background:rgba(52,211,153,.12);color:var(--success);border:1px solid rgba(52,211,153,.2)}
+    .status-badge.published{background:rgba(52,211,153,.15);color:var(--success);border:1px solid rgba(52,211,153,.25)}
+    @media(max-width:700px){.stats-row{grid-template-columns:1fr 1fr}.t-cols{grid-template-columns:2fr 1.5fr 1fr}.t-cols>*:nth-child(2),.t-cols>*:nth-child(4){display:none}}
+  </style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <nav>
+    <a href="/static/pages/teacher-dashboard.html" class="nav-logo"><div class="logo-icon">✦</div><span class="logo-text">AutoGrade</span></a>
+    <div class="nav-links">
+      <a href="/static/pages/teacher-dashboard.html" class="nav-link active">Dashboard</a>
+      <a href="/static/pages/create-test.html" class="nav-link">Create Test</a>
+      <a href="/static/pages/queue.html" class="nav-link">Review Queue</a>
+      <a href="/static/pages/teacher-students.html" class="nav-link">Students</a>
+      <div class="profile-wrap" onclick="toggleProfile()" id="profileWrap">
+        <div class="avatar teacher" id="profileAvatar"><div class="avatar-pulse"></div>T</div>
+        <div class="profile-info">
+          <div class="profile-name" id="profileName">Teacher</div>
+          <div class="profile-role teacher">Teacher</div>
+        </div>
+        <div class="profile-dropdown" id="profileDropdown">
+          <div class="pd-header">
+            <div class="pd-avatar teacher" id="pdAvatar">T</div>
+            <div><div class="pd-name" id="pdName">Teacher</div><div class="pd-email" id="pdEmail"></div><div class="pd-id" id="pdId"></div></div>
+          </div>
+          <div class="pd-body">
+            <div class="pd-divider"></div>
+            <button class="pd-item pd-logout" onclick="handleLogout()"><span class="pd-icon">🚪</span>Logout</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+  <div class="page">
+    <div class="page-top">
+      <div><h1>Teacher Dashboard</h1><p>Overview of your tests and student submissions</p></div>
+      <a href="/static/pages/create-test.html" class="create-btn">＋ Create New Test</a>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card" style="animation-delay:.05s"><div class="stat-label">Total Submissions</div><div class="stat-value blue" id="statQueue">—</div></div>
+      <div class="stat-card" style="animation-delay:.1s"><div class="stat-label">Pending Review</div><div class="stat-value purple" id="statPending">—</div></div>
+      <div class="stat-card" style="animation-delay:.15s"><div class="stat-label">Published</div><div class="stat-value green" id="statPublished">—</div></div>
+    </div>
+    <div class="section-header">
+      <span class="section-title">Recent Submissions</span>
+      <a href="/static/pages/queue.html" class="view-all">View all →</a>
+    </div>
+    <div class="table-wrap queue-table">
+      <div class="table-header t-cols"><span>Student</span><span>Test</span><span>Submitted</span><span>Status</span><span>Action</span></div>
+      <div id="queueBody"></div>
+    </div>
+  </div>
+  <script>
+    const STATUS_LABELS={pending:'Pending',processing:'Processing',llm_done:'AI Done',reviewed:'Reviewed',published:'Published'};
+    function formatDate(iso){const d=new Date(iso);return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'})+' · '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});}
+    function renderQueue(queue){
+      const body=document.getElementById('queueBody');
+      if(!queue||!queue.length){body.innerHTML='<div class="empty-state"><div class="empty-icon">📭</div><h3>No submissions yet</h3><p>Once students submit, they\'ll appear here.</p></div>';['statQueue','statPending','statPublished'].forEach(id=>document.getElementById(id).textContent='0');return;}
+      const recent=queue.slice(0,8);
+      body.innerHTML=recent.map(sub=>`
+        <div class="table-row t-cols">
+          <span style="font-weight:600">${sub.student_name}</span>
+          <span style="color:var(--muted);font-size:13px">${sub.test_title||'Test #'+sub.test_id}</span>
+          <span style="color:var(--muted);font-size:13px">${formatDate(sub.uploaded_at)}</span>
+          <span><span class="status-badge ${sub.status}"><span class="dot"></span>${STATUS_LABELS[sub.status]||sub.status}</span></span>
+          <span>${sub.status==='llm_done'||sub.status==='reviewed'?`<a href="/static/pages/review.html?id=${sub.submission_id}" class="review-link">Review →</a>`:sub.status==='published'?'<span style="color:var(--success);font-size:13px;font-weight:600">✓ Done</span>':'<span style="color:var(--muted);font-size:13px">Waiting…</span>'}</span>
+        </div>`).join('');
+      document.getElementById('statQueue').textContent=queue.length;
+      document.getElementById('statPending').textContent=queue.filter(s=>s.status==='llm_done'||s.status==='reviewed').length;
+      document.getElementById('statPublished').textContent=queue.filter(s=>s.status==='published').length;
+    }
+    async function loadQueue(){
+      try{const res=await fetch('/queue');if(res.status===401){window.location.href='/static/pages/login.html';return;}const data=await res.json();renderQueue(data.queue||[]);}
+      catch(err){document.getElementById('queueBody').innerHTML='<div class="empty-state"><div class="empty-icon">⚠️</div><h3>Could not load</h3><p>Make sure you are logged in.</p></div>';}
+    }
+    async function handleLogout(){try{await fetch('/logout',{method:'POST'});}catch(_){}window.location.href='/static/pages/login.html';}
+    loadQueue();
+  </script>
+  <script src="/static/js/profile.js"></script>
+</body>
+</html>

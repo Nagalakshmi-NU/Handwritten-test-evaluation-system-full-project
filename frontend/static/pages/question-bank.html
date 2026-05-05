@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Question Bank — AutoGrade</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/dashboard.css"/>
+  <style>
+    .page-top{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:32px;flex-wrap:wrap;gap:16px}
+    .page-top h1{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;letter-spacing:-.5px;margin-bottom:4px}
+    .page-top p{font-size:14px;color:var(--muted)}
+    .add-btn{display:flex;align-items:center;gap:8px;padding:11px 22px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:all .2s;box-shadow:0 4px 16px rgba(79,142,247,.3)}
+    .add-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(79,142,247,.4)}
+    .filter-row{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
+    .search-input{background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;padding:9px 14px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);outline:none;transition:all .2s;width:240px}
+    .search-input:focus{border-color:rgba(79,142,247,.5);box-shadow:0 0 0 3px rgba(79,142,247,.1)}
+    .filter-select{background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;padding:9px 14px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);outline:none;cursor:pointer}
+    .qb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+    .qb-card{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:16px;padding:22px;transition:all .3s;animation:fadeUp .4s ease both;position:relative}
+    .qb-card:hover{border-color:rgba(79,142,247,.3);transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.2)}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    .qb-subject{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--accent);background:rgba(79,142,247,.1);padding:3px 10px;border-radius:20px;border:1px solid rgba(79,142,247,.2);display:inline-block;margin-bottom:12px}
+    .qb-text{font-size:15px;font-weight:600;margin-bottom:10px;line-height:1.5}
+    .qb-answer{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .qb-footer{display:flex;align-items:center;justify-content:space-between}
+    .qb-marks{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--success)}
+    .qb-actions{display:flex;gap:8px}
+    .btn-use{padding:6px 14px;border:none;border-radius:8px;background:rgba(79,142,247,.12);color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(79,142,247,.2);transition:all .2s}
+    .btn-use:hover{background:rgba(79,142,247,.25)}
+    .btn-del{padding:6px 10px;border:none;border-radius:8px;background:rgba(248,113,113,.08);color:var(--error);font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(248,113,113,.15);transition:all .2s}
+    .btn-del:hover{background:rgba(248,113,113,.2)}
+    /* Add Modal */
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:300;align-items:center;justify-content:center;padding:24px}
+    .modal-overlay.show{display:flex}
+    .modal{background:rgba(8,10,20,.98);border:1px solid rgba(255,255,255,.1);border-radius:22px;width:100%;max-width:560px;padding:36px;position:relative;box-shadow:0 40px 100px rgba(0,0,0,.6);animation:fadeUp .3s ease;max-height:90vh;overflow-y:auto}
+    .modal-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--muted);font-size:18px;cursor:pointer;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+    .modal-close:hover{color:var(--error);background:rgba(248,113,113,.1)}
+    .modal-title{font-family:'Syne',sans-serif;font-weight:700;font-size:20px;margin-bottom:24px}
+    .field{margin-bottom:16px}
+    .field label{display:block;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:7px}
+    .field input,.field textarea,.field select{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:11px 14px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);outline:none;transition:all .2s;resize:vertical}
+    .field input:focus,.field textarea:focus,.field select:focus{border-color:rgba(79,142,247,.6);box-shadow:0 0 0 3px rgba(79,142,247,.1)}
+    .field textarea{min-height:80px}
+    .rubric-item{display:flex;gap:8px;margin-bottom:8px}
+    .rubric-item input{flex:1}
+    .rubric-remove{background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);cursor:pointer;padding:0 10px;font-size:16px;transition:all .2s}
+    .rubric-remove:hover{color:var(--error);border-color:var(--error)}
+    .add-rubric-btn{background:none;border:1px dashed rgba(255,255,255,.1);border-radius:8px;color:var(--muted);font-size:13px;font-family:'DM Sans',sans-serif;padding:7px 14px;cursor:pointer;width:100%;transition:all .2s;margin-top:4px}
+    .add-rubric-btn:hover{color:var(--accent);border-color:var(--accent)}
+    .save-btn{width:100%;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:15px;cursor:pointer;transition:all .2s;margin-top:8px}
+    .save-btn:hover{opacity:.9}
+    .empty-state{text-align:center;padding:60px 24px;color:var(--muted)}
+    .empty-icon{font-size:48px;margin-bottom:16px}
+    .empty-state h3{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:8px;color:var(--text)}
+    .toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:500;z-index:400;transform:translateY(80px);opacity:0;transition:all .3s}
+    .toast.show{transform:translateY(0);opacity:1}
+  </style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <nav>
+    <a href="/static/pages/teacher-dashboard.html" class="nav-logo"><div class="logo-icon">✦</div><span class="logo-text">AutoGrade</span></a>
+    <div class="nav-links">
+      <a href="/static/pages/teacher-dashboard.html" class="nav-link">Dashboard</a>
+      <a href="/static/pages/create-test.html" class="nav-link">Create Test</a>
+      <a href="/static/pages/queue.html" class="nav-link">Review Queue</a>
+      <a href="/static/pages/teacher-students.html" class="nav-link">Students</a>
+      <a href="/static/pages/question-bank.html" class="nav-link active">Question Bank</a>
+      <div class="profile-wrap" onclick="toggleProfile()" id="profileWrap">
+        <div class="avatar teacher" id="profileAvatar"><div class="avatar-pulse"></div>T</div>
+        <div class="profile-info"><div class="profile-name" id="profileName">Teacher</div><div class="profile-role teacher">Teacher</div></div>
+        <div class="profile-dropdown" id="profileDropdown">
+          <div class="pd-header"><div class="pd-avatar teacher" id="pdAvatar">T</div><div><div class="pd-name" id="pdName">Teacher</div><div class="pd-email" id="pdEmail"></div></div></div>
+          <div class="pd-body"><div class="pd-divider"></div><button class="pd-item pd-logout" onclick="handleLogout()"><span class="pd-icon">🚪</span>Logout</button></div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page" style="max-width:1100px">
+    <div class="page-top">
+      <div><h1>Question Bank</h1><p>Save and reuse questions across multiple tests</p></div>
+      <button class="add-btn" onclick="openAddModal()">＋ Add Question</button>
+    </div>
+    <div class="filter-row">
+      <input class="search-input" id="searchInput" placeholder="Search questions..." oninput="filterQuestions()"/>
+      <select class="filter-select" id="subjectFilter" onchange="filterQuestions()">
+        <option value="">All Subjects</option>
+      </select>
+      <span style="font-size:13px;color:var(--muted)" id="countLabel"></span>
+    </div>
+    <div class="qb-grid" id="qbGrid"></div>
+  </div>
+
+  <!-- Add Question Modal -->
+  <div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <button class="modal-close" onclick="closeModal()">✕</button>
+      <div class="modal-title">📚 Add to Question Bank</div>
+      <div class="field"><label>Subject</label><input type="text" id="qSubject" placeholder="e.g. Physics"/></div>
+      <div class="field"><label>Question Text</label><textarea id="qText" placeholder="Enter the question..."></textarea></div>
+      <div class="field"><label>Model Answer</label><textarea id="qAnswer" placeholder="Enter the ideal answer..."></textarea></div>
+      <div class="field"><label>Max Marks</label><input type="number" id="qMarks" value="5" min="1"/></div>
+      <div class="field">
+        <label>Rubric Points</label>
+        <div id="rubricList"></div>
+        <button class="add-rubric-btn" onclick="addRubric()">＋ Add rubric point</button>
+      </div>
+      <button class="save-btn" onclick="saveQuestion()">Save to Bank</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let allQuestions = [];
+
+    function showToast(msg, color='var(--success)'){
+      const t=document.getElementById('toast'); t.textContent=msg; t.style.background=color;
+      t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500);
+    }
+
+    async function load(){
+      try{
+        const res = await fetch('/teacher/question-bank');
+        if(res.status===401){window.location.href='/static/pages/login.html';return;}
+        const data = await res.json();
+        allQuestions = data.questions || [];
+        populateSubjectFilter();
+        renderQuestions(allQuestions);
+      }catch(e){
+        document.getElementById('qbGrid').innerHTML='<div class="empty-state"><div class="empty-icon">⚠️</div><h3>Could not load</h3></div>';
+      }
+    }
+
+    function populateSubjectFilter(){
+      const subjects = [...new Set(allQuestions.map(q=>q.subject).filter(Boolean))];
+      const sel = document.getElementById('subjectFilter');
+      sel.innerHTML = '<option value="">All Subjects</option>' +
+        subjects.map(s=>`<option value="${s}">${s}</option>`).join('');
+    }
+
+    function filterQuestions(){
+      const search  = document.getElementById('searchInput').value.toLowerCase();
+      const subject = document.getElementById('subjectFilter').value;
+      const filtered = allQuestions.filter(q =>
+        (!subject || q.subject === subject) &&
+        (!search || q.question_text.toLowerCase().includes(search) || (q.subject||'').toLowerCase().includes(search))
+      );
+      renderQuestions(filtered);
+    }
+
+    function renderQuestions(questions){
+      const grid = document.getElementById('qbGrid');
+      document.getElementById('countLabel').textContent = `${questions.length} question${questions.length!==1?'s':''}`;
+      if(!questions.length){
+        grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📚</div><h3>No questions yet</h3><p>Add questions to reuse them across tests.</p></div>';
+        return;
+      }
+      grid.innerHTML = questions.map((q,i)=>`
+        <div class="qb-card" style="animation-delay:${i*.04}s">
+          <div class="qb-subject">${q.subject||'General'}</div>
+          <div class="qb-text">${q.question_text}</div>
+          <div class="qb-answer">${q.model_answer}</div>
+          <div class="qb-footer">
+            <span class="qb-marks">${q.max_marks} marks</span>
+            <div class="qb-actions">
+              <button class="btn-use" onclick="useQuestion(${q.id})">Use in Test</button>
+              <button class="btn-del" onclick="deleteQuestion(${q.id})">✕</button>
+            </div>
+          </div>
+        </div>`).join('');
+    }
+
+    function openAddModal(){
+      document.getElementById('qSubject').value='';
+      document.getElementById('qText').value='';
+      document.getElementById('qAnswer').value='';
+      document.getElementById('qMarks').value='5';
+      document.getElementById('rubricList').innerHTML='';
+      addRubric();
+      document.getElementById('modalOverlay').classList.add('show');
+    }
+    function closeModal(){ document.getElementById('modalOverlay').classList.remove('show'); }
+
+    function addRubric(){
+      const list = document.getElementById('rubricList');
+      const item = document.createElement('div'); item.className='rubric-item';
+      item.innerHTML='<input type="text" placeholder="e.g. Mentions F=ma: 2pts"/><button class="rubric-remove" onclick="this.parentElement.remove()">✕</button>';
+      list.appendChild(item);
+    }
+
+    async function saveQuestion(){
+      const text   = document.getElementById('qText').value.trim();
+      const answer = document.getElementById('qAnswer').value.trim();
+      const marks  = parseInt(document.getElementById('qMarks').value);
+      if(!text||!answer){showToast('Question text and model answer required','var(--error)');return;}
+      const rubric = [];
+      document.querySelectorAll('#rubricList input').forEach(inp=>{if(inp.value.trim())rubric.push(inp.value.trim());});
+      try{
+        const res = await fetch('/teacher/question-bank',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({subject:document.getElementById('qSubject').value.trim(),question_text:text,model_answer:answer,max_marks:marks,rubric})});
+        if(res.ok){showToast('Question saved to bank!');closeModal();load();}
+        else{const d=await res.json();showToast(d.error||'Failed','var(--error)');}
+      }catch(e){showToast('Network error','var(--error)');}
+    }
+
+    async function deleteQuestion(id){
+      if(!confirm('Delete this question from bank?'))return;
+      await fetch(`/teacher/question-bank/${id}`,{method:'DELETE'});
+      showToast('Deleted','var(--warning)');load();
+    }
+
+    function useQuestion(id){
+      const q = allQuestions.find(q=>q.id===id);
+      if(!q)return;
+      // Store in sessionStorage and redirect to create test
+      const existing = JSON.parse(sessionStorage.getItem('qb_questions')||'[]');
+      existing.push(q);
+      sessionStorage.setItem('qb_questions', JSON.stringify(existing));
+      showToast('Question added! Redirecting to Create Test...');
+      setTimeout(()=>window.location.href='/static/pages/create-test.html?from_bank=1',1000);
+    }
+
+    async function handleLogout(){try{await fetch('/logout',{method:'POST'});}catch(_){}window.location.href='/static/pages/login.html';}
+    load();
+  </script>
+  <script src="/static/js/profile.js"></script>
+</body>
+</html>

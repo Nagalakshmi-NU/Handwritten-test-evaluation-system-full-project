@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Announcements — AutoGrade</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/dashboard.css"/>
+  <style>
+    .page-top{margin-bottom:32px}
+    .page-top h1{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;letter-spacing:-.5px;margin-bottom:4px}
+    .page-top p{font-size:14px;color:var(--muted)}
+    .compose-card{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:20px;padding:28px;margin-bottom:28px}
+    .compose-title{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;margin-bottom:20px}
+    .field{margin-bottom:16px}
+    .field label{display:block;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:7px}
+    .field select,.field textarea{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:11px 14px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);outline:none;transition:all .2s;resize:vertical}
+    .field select:focus,.field textarea:focus{border-color:rgba(79,142,247,.6);box-shadow:0 0 0 3px rgba(79,142,247,.1)}
+    .field textarea{min-height:100px}
+    .send-btn{padding:12px 28px;border:none;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:all .2s;box-shadow:0 4px 16px rgba(79,142,247,.3)}
+    .send-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(79,142,247,.4)}
+    .send-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+    .alert{padding:12px 16px;border-radius:10px;font-size:13px;margin-bottom:16px;display:none}
+    .alert.success{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.2);color:var(--success)}
+    .alert.error{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.2);color:var(--error)}
+    .alert.show{display:block}
+    .char-count{font-size:12px;color:var(--muted);text-align:right;margin-top:4px}
+    .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;margin-right:8px;vertical-align:middle}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  </style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <nav>
+    <a href="/static/pages/teacher-dashboard.html" class="nav-logo"><div class="logo-icon">✦</div><span class="logo-text">AutoGrade</span></a>
+    <div class="nav-links">
+      <a href="/static/pages/teacher-dashboard.html" class="nav-link">Dashboard</a>
+      <a href="/static/pages/create-test.html" class="nav-link">Create Test</a>
+      <a href="/static/pages/queue.html" class="nav-link">Review Queue</a>
+      <a href="/static/pages/teacher-students.html" class="nav-link">Students</a>
+      <a href="/static/pages/question-bank.html" class="nav-link">Question Bank</a>
+      <a href="/static/pages/announcements.html" class="nav-link active">Announcements</a>
+      <div class="profile-wrap" onclick="toggleProfile()" id="profileWrap">
+        <div class="avatar teacher" id="profileAvatar"><div class="avatar-pulse"></div>T</div>
+        <div class="profile-info"><div class="profile-name" id="profileName">Teacher</div><div class="profile-role teacher">Teacher</div></div>
+        <div class="profile-dropdown" id="profileDropdown">
+          <div class="pd-header"><div class="pd-avatar teacher" id="pdAvatar">T</div><div><div class="pd-name" id="pdName">Teacher</div><div class="pd-email" id="pdEmail"></div></div></div>
+          <div class="pd-body"><div class="pd-divider"></div><button class="pd-item pd-logout" onclick="handleLogout()"><span class="pd-icon">🚪</span>Logout</button></div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page" style="max-width:760px">
+    <div class="page-top"><h1>Announcements</h1><p>Send announcements to your students</p></div>
+
+    <div class="compose-card">
+      <div class="compose-title">📢 Send Announcement</div>
+      <div class="alert success" id="successAlert"></div>
+      <div class="alert error" id="errorAlert"></div>
+      <div class="field">
+        <label>Send To</label>
+        <select id="testSelect">
+          <option value="">All My Students</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Message</label>
+        <textarea id="msgInput" placeholder="Write your announcement here..." maxlength="500" oninput="updateCount()"></textarea>
+        <div class="char-count"><span id="charCount">0</span>/500</div>
+      </div>
+      <button class="send-btn" id="sendBtn" onclick="sendAnnouncement()">📤 Send Announcement</button>
+    </div>
+
+    <div class="section-title">Recent Announcements</div>
+    <div id="announcementsList"></div>
+  </div>
+
+  <script>
+    async function loadTests(){
+      try{
+        const res = await fetch('/teacher/tests');
+        if(res.status===401){window.location.href='/static/pages/login.html';return;}
+        const data = await res.json();
+        const sel = document.getElementById('testSelect');
+        (data.tests||[]).forEach(t=>{
+          const opt = document.createElement('option');
+          opt.value = t.test_id; opt.textContent = t.title;
+          sel.appendChild(opt);
+        });
+      }catch(e){}
+    }
+
+    function updateCount(){
+      document.getElementById('charCount').textContent = document.getElementById('msgInput').value.length;
+    }
+
+    async function sendAnnouncement(){
+      const msg    = document.getElementById('msgInput').value.trim();
+      const testId = document.getElementById('testSelect').value;
+      if(!msg){showAlert('error','Please write a message.');return;}
+      const btn = document.getElementById('sendBtn');
+      btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Sending...';
+      try{
+        const body = {message:msg};
+        if(testId) body.test_id = parseInt(testId);
+        const res  = await fetch('/teacher/announce',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        const data = await res.json();
+        if(res.ok){
+          showAlert('success', data.message + ' — Announcement sent!');
+          document.getElementById('msgInput').value='';
+          updateCount();
+        } else { showAlert('error', data.error||'Failed to send.'); }
+      }catch(e){ showAlert('error','Network error.'); }
+      btn.disabled=false; btn.textContent='📤 Send Announcement';
+    }
+
+    function showAlert(type, msg){
+      const el = document.getElementById(type+'Alert');
+      const other = document.getElementById(type==='success'?'errorAlert':'successAlert');
+      other.classList.remove('show');
+      el.textContent = msg; el.classList.add('show');
+      setTimeout(()=>el.classList.remove('show'), 4000);
+    }
+
+    async function handleLogout(){try{await fetch('/logout',{method:'POST'});}catch(_){}window.location.href='/static/pages/login.html';}
+    loadTests();
+  </script>
+  <script src="/static/js/profile.js"></script>
+</body>
+</html>
