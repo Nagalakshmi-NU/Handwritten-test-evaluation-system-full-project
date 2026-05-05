@@ -120,7 +120,6 @@ def _run_pipeline(submission_id):
                             img = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR) if pix.n == 3 else cv2.cvtColor(arr, cv2.COLOR_RGBA2BGR)
                         if img is not None:
                             from ml_pipeline import _groq_ocr
-                            # Split image per question
                             h, w = img.shape[:2]
                             n = len(questions_data)
                             section_h = h // n if n > 1 else h
@@ -130,9 +129,25 @@ def _run_pipeline(submission_id):
                             student_answer = _groq_ocr(crop, Config.GROQ_API_KEY)
                     except Exception as e:
                         print(f"Groq Vision OCR failed for Q{q_num}: {e}")
-                elif not os.path.exists(image_path or "") and page and page.processed_text:
-                    # File missing (Render ephemeral) but we have stored text
-                    student_answer = page.processed_text
+                elif page and page.processed_text and page.processed_text.startswith('data:image') and Config.GROQ_API_KEY:
+                    # File missing but base64 stored in DB — decode and run OCR
+                    try:
+                        import base64 as b64mod, cv2, numpy as np
+                        header, data = page.processed_text.split(',', 1)
+                        img_bytes = b64mod.b64decode(data)
+                        img_arr = np.frombuffer(img_bytes, dtype=np.uint8)
+                        img = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
+                        if img is not None:
+                            from ml_pipeline import _groq_ocr
+                            h, w = img.shape[:2]
+                            n = len(questions_data)
+                            section_h = h // n if n > 1 else h
+                            y1 = q_num_idx * section_h
+                            y2 = (q_num_idx + 1) * section_h if q_num_idx < n - 1 else h
+                            crop = img[y1:y2, 0:w]
+                            student_answer = _groq_ocr(crop, Config.GROQ_API_KEY)
+                    except Exception as e:
+                        print(f"Base64 OCR failed for Q{q_num}: {e}")
 
                 try:
                     result = evaluate_answer(
