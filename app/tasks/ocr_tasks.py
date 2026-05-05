@@ -1,16 +1,14 @@
 """
 app/tasks/ocr_tasks.py
-Background processing pipeline.
-Uses ML PART/pipeline.py when available, falls back to local evaluation.
+Render-proof pipeline: reads image from base64 stored in DB → Groq Vision OCR → Groq LLM evaluation
+No dependency on disk files.
 """
 
 import sys, os, json
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-ML_PATH = os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', '..'
-))
+ML_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 if os.path.exists(os.path.join(ML_PATH, 'ml_pipeline.py')):
     sys.path.insert(0, ML_PATH)
     ML_AVAILABLE = True
@@ -18,10 +16,62 @@ else:
     ML_AVAILABLE = False
 
 
+def _groq_vision_ocr(image_source, question_text, groq_api_key):
+    """
+    Run Groq Vision OCR on an image.
+    image_source: file path OR base64 data URI string
+    Returns extracted text string.
+    """
+    import base64
+    from groq import Groq
+
+    try:
+        # Get base64 string
+        if image_source.startswith('data:image'):
+            # Already base64 data URI
+            img_b64_uri = image_source
+        elif os.path.exists(image_source):
+            # Read from file
+            with open(image_source, 'rb') as f:
+                raw = f.read()
+            ext = os.path.splitext(image_source)[1].lower().strip('.')
+            if ext == 'jpg':
+                ext = 'jpeg'
+            img_b64 = base64.b64encode(raw).decode('utf-8')
+            img_b64_uri = f"data:image/{ext};base64,{img_b64}"
+        else:
+            return "Image not available"
+
+        client = Groq(api_key=groq_api_key)
+        response = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": img_b64_uri}
+                    },
+                    {
+                        "type": "text",
+                        "text": f"This is a student's handwritten answer sheet. Find and extract the answer written for this question: '{question_text}'. Return ONLY the handwritten answer text. If you cannot find an answer for this question, respond with 'No answer written'."
+                    }
+                ]
+            }],
+            max_tokens=512,
+            temperature=0
+        )
+        text = response.choices[0].message.content.strip()
+        return text if text else "No answer detected"
+    except Exception as e:
+        print(f"Groq Vision OCR error: {e}")
+        return "OCR failed"
+
+
 def _run_pipeline(submission_id):
-    """Core pipeline — runs directly without Celery."""
+    """Core pipeline — Render-proof, works with base64 from DB."""
     from app import create_app, db
-    from app.models import Submission, Question, Evaluation
+    from app.models import Submission, Question, Evaluation, SubmissionPage
     from config import Config
 
     app = create_app()
@@ -39,35 +89,29 @@ def _run_pipeline(submission_id):
             db.session.commit()
             return {"error": "No questions found"}
 
-        # Get image path from submission pages
-        from app.models import SubmissionPage
         page = SubmissionPage.query.filter_by(
             submission_id=submission_id, page_number=1
         ).first()
         image_path = page.image_path if page else None
 
-        # If file missing (Render ephemeral), decode from base64 stored in DB
-        if image_path and not os.path.exists(image_path) and page and page.processed_text and page.processed_text.startswith('data:image'):
-            try:
-                import base64 as b64mod
-                header, data = page.processed_text.split(',', 1)
-                ext = header.split('/')[1].split(';')[0]
-                img_bytes = b64mod.b64decode(data)
-                os.makedirs(os.path.dirname(image_path), exist_ok=True)
-                with open(image_path, 'wb') as f:
-                    f.write(img_bytes)
-                print(f"Restored image from base64 for submission {submission_id}")
-            except Exception as e:
-                print(f"Could not restore image from base64: {e}")
+        # Determine image source — prefer base64 from DB, fallback to file
+        image_source = None
+        if page and page.processed_text and page.processed_text.startswith('data:image'):
+            image_source = page.processed_text  # base64 from DB
+            print(f"Using base64 from DB for submission {submission_id}")
+        elif image_path and os.path.exists(image_path):
+            image_source = image_path  # file on disk
+            print(f"Using file from disk for submission {submission_id}")
+        else:
+            print(f"No image available for submission {submission_id}")
 
-        # Build questions list for ML pipeline
+        # Build questions data
         questions_data = []
         bounding_boxes = []
         for q in questions:
             rubric_data = json.loads(q.rubric_json)
             rubric = rubric_data.get("rubric", rubric_data) if isinstance(rubric_data, dict) else rubric_data
             bbox   = rubric_data.get("bbox", None) if isinstance(rubric_data, dict) else None
-
             questions_data.append({
                 "question_number": q.question_number,
                 "question_text":   q.question_text or f"Question {q.question_number}",
@@ -79,14 +123,14 @@ def _run_pipeline(submission_id):
             if bbox:
                 bounding_boxes.append(bbox)
 
-        # ── Try ML PART pipeline ─────────────────────────────
+        # Try ML pipeline first (works locally with file on disk)
         ml_results = None
-        if ML_AVAILABLE and image_path and os.path.exists(image_path):
+        if ML_AVAILABLE and image_source and not image_source.startswith('data:image') and os.path.exists(image_source):
             try:
                 from ml_pipeline import process_submission as ml_process
                 ml_output = ml_process(
                     submission_id=submission_id,
-                    image_path=image_path,
+                    image_path=image_source,
                     questions=questions_data,
                     bounding_boxes=bounding_boxes,
                     groq_api_key=Config.GROQ_API_KEY
@@ -95,60 +139,23 @@ def _run_pipeline(submission_id):
                     ml_results = {r["question_number"]: r for r in ml_output["results"]}
                     print(f"ML pipeline succeeded for submission {submission_id}")
             except Exception as e:
-                print(f"ML pipeline failed: {e}, falling back to local evaluation")
+                print(f"ML pipeline failed: {e}")
 
-        # ── Fallback: local evaluation ───────────────────────
+        # Groq Vision fallback (works on Render with base64 or file)
         if not ml_results:
             from app.utils.llm_evaluator import evaluate_answer
-
             ml_results = {}
-            for q_num_idx, q in enumerate(questions_data):
+
+            for q in questions_data:
                 q_num = q["question_number"]
 
-                # Try Groq Vision OCR on the uploaded image
-                student_answer = "No answer provided"
-                if image_path and os.path.exists(image_path) and Config.GROQ_API_KEY:
-                    try:
-                        import cv2
-                        import numpy as np
-                        img = cv2.imread(image_path)
-                        if img is None and image_path.lower().endswith('.pdf'):
-                            import fitz
-                            doc = fitz.open(image_path)
-                            pix = doc[0].get_pixmap(dpi=150)
-                            arr = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
-                            img = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR) if pix.n == 3 else cv2.cvtColor(arr, cv2.COLOR_RGBA2BGR)
-                        if img is not None:
-                            from ml_pipeline import _groq_ocr
-                            h, w = img.shape[:2]
-                            n = len(questions_data)
-                            section_h = h // n if n > 1 else h
-                            y1 = q_num_idx * section_h
-                            y2 = (q_num_idx + 1) * section_h if q_num_idx < n - 1 else h
-                            crop = img[y1:y2, 0:w]
-                            student_answer = _groq_ocr(crop, Config.GROQ_API_KEY)
-                    except Exception as e:
-                        print(f"Groq Vision OCR failed for Q{q_num}: {e}")
-                elif page and page.processed_text and page.processed_text.startswith('data:image') and Config.GROQ_API_KEY:
-                    # File missing but base64 stored in DB — decode and run OCR
-                    try:
-                        import base64 as b64mod, cv2, numpy as np
-                        header, data = page.processed_text.split(',', 1)
-                        img_bytes = b64mod.b64decode(data)
-                        img_arr = np.frombuffer(img_bytes, dtype=np.uint8)
-                        img = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
-                        if img is not None:
-                            from ml_pipeline import _groq_ocr
-                            h, w = img.shape[:2]
-                            n = len(questions_data)
-                            section_h = h // n if n > 1 else h
-                            y1 = q_num_idx * section_h
-                            y2 = (q_num_idx + 1) * section_h if q_num_idx < n - 1 else h
-                            crop = img[y1:y2, 0:w]
-                            student_answer = _groq_ocr(crop, Config.GROQ_API_KEY)
-                    except Exception as e:
-                        print(f"Base64 OCR failed for Q{q_num}: {e}")
+                # OCR
+                if image_source and Config.GROQ_API_KEY:
+                    student_answer = _groq_vision_ocr(image_source, q["question_text"], Config.GROQ_API_KEY)
+                else:
+                    student_answer = "No image available for OCR"
 
+                # Evaluate
                 try:
                     result = evaluate_answer(
                         question_text=q["question_text"],
@@ -160,11 +167,11 @@ def _run_pipeline(submission_id):
                     )
                 except Exception as e:
                     result = {
-                        "score": 0,
-                        "confidence": 0.5,
+                        "score": 0, "confidence": 0.5,
                         "feedback": "Evaluation failed. Teacher review recommended.",
                         "matched_points": [], "missing_points": []
                     }
+
                 ml_results[q_num] = {
                     "question_number": q_num,
                     "extracted_text":  student_answer,
@@ -173,10 +180,10 @@ def _run_pipeline(submission_id):
                     "confidence":      result["confidence"]
                 }
 
-        # ── Save evaluations to DB ───────────────────────────
+        # Save to DB
         for q in questions_data:
-            q_num  = q["question_number"]
-            res    = ml_results.get(q_num, {})
+            q_num = q["question_number"]
+            res   = ml_results.get(q_num, {})
             ev = Evaluation.query.filter_by(
                 submission_id=submission_id,
                 question_id=q["question_id"]
@@ -205,7 +212,7 @@ def _run_pipeline(submission_id):
         return {"submission_id": submission_id, "status": "llm_done"}
 
 
-# Try Celery, fall back to direct execution
+# Celery / threading fallback
 try:
     from celery import Celery
 
