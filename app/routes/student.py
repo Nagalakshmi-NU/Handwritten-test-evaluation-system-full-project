@@ -79,6 +79,7 @@ def submit():
     if test.deadline and datetime.utcnow() > test.deadline:
         return jsonify({"error": "Submission deadline has passed. You can no longer upload answers for this test."}), 403
 
+    files = request.files.getlist("image")
     if not files or all(f.filename == "" for f in files):
         return jsonify({"error": "No image file uploaded"}), 400
 
