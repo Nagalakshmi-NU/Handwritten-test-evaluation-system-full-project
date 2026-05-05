@@ -111,14 +111,11 @@ def submit():
         db.session.commit()
         log(current_user.id, f"Submitted answer for test {test_id} ({len(files)} page(s))")
 
-        try:
-            process_submission.delay(submission.id)
-        except Exception as e:
-            print(f"Celery unavailable, running directly: {e}")
-            import threading
-            t = threading.Thread(target=_run_pipeline, args=(submission.id,))
-            t.daemon = True
-            t.start()
+        # Run pipeline in background thread — never block the HTTP response
+        import threading
+        t = threading.Thread(target=_run_pipeline, args=(submission.id,))
+        t.daemon = True
+        t.start()
 
         return jsonify({"message": "Submitted successfully", "submission_id": submission.id, "status": "pending", "pages": len(files)}), 201
 

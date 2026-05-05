@@ -136,22 +136,21 @@
     };
     window.addEventListener('DOMContentLoaded', async ()=>{
       if(!testId){document.getElementById('bannerTitle').textContent='No test selected';return;}
-      // Load test info
+      document.getElementById('bannerTitle').textContent=`Test #${testId}`;
+      document.getElementById('bannerMeta').textContent='Upload your handwritten answer sheet below';
+      // Load test info with timeout
       try{
-        const res = await fetch(`/student/test/${testId}/questions`);
-        const data = await res.json();
-        document.getElementById('bannerTitle').textContent = data.title || `Test #${testId}`;
-        document.getElementById('bannerMeta').textContent = `${data.subject||''} · ${data.total_marks} marks · ${data.questions.length} questions`;
-        // Show view question paper button
-        const qpBtn = document.createElement('a');
-        qpBtn.href = `/test/${testId}/view-paper/question`;
-        qpBtn.target = '_blank';
-        qpBtn.textContent = '📄 View Question Paper';
-        qpBtn.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:rgba(79,142,247,.1);border:1px solid rgba(79,142,247,.2);color:var(--accent);border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;margin-top:10px;transition:all .2s';
-        document.querySelector('.test-banner').appendChild(qpBtn);
+        const controller = new AbortController();
+        const timeout = setTimeout(()=>controller.abort(), 8000);
+        const res = await fetch(`/student/test/${testId}/questions`, {signal: controller.signal});
+        clearTimeout(timeout);
+        if(res.ok){
+          const data = await res.json();
+          document.getElementById('bannerTitle').textContent = data.title || `Test #${testId}`;
+          document.getElementById('bannerMeta').textContent = `${data.subject||''} · ${data.total_marks} marks · ${data.questions.length} questions`;
+        }
       }catch(e){
-        document.getElementById('bannerTitle').textContent=`Test #${testId}`;
-        document.getElementById('bannerMeta').textContent='Upload your handwritten answer sheet below';
+        // Keep default text if API fails or times out
       }
     });
     const zone=document.getElementById('uploadZone');
@@ -221,7 +220,10 @@
         const formData=new FormData();
         formData.append('test_id',testId);
         for(const file of selectedFiles) formData.append('image',file);
-        const res=await fetch('/submit',{method:'POST',body:formData});
+        const controller = new AbortController();
+        const timeout = setTimeout(()=>controller.abort(), 60000); // 60s timeout
+        const res=await fetch('/submit',{method:'POST',body:formData,signal:controller.signal});
+        clearTimeout(timeout);
         const data=await res.json();
         if(res.ok){
           submissionId=data.submission_id;
@@ -229,7 +231,14 @@
           document.getElementById('statusTracker').classList.add('show');
           updateSteps('pending');startPolling();
         }else{showError(data.error||'Upload failed.');btn.disabled=false;btn.textContent='Submit Answer Sheet';}
-      }catch(err){showError('Network error.');btn.disabled=false;btn.textContent='Submit Answer Sheet';}
+      }catch(err){
+        if(err.name==='AbortError'){
+          showError('Upload timed out. Please try again with a smaller file.');
+        } else {
+          showError('Network error. Please check your connection and try again.');
+        }
+        btn.disabled=false;btn.textContent='Submit Answer Sheet';
+      }
     }
     async function handleLogout(){try{await fetch('/logout',{method:'POST'});}catch(_){}window.location.href='/static/pages/login.html';}
   </script>
