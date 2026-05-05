@@ -88,17 +88,15 @@ def _run_pipeline(submission_id):
             from app.utils.llm_evaluator import evaluate_answer
 
             ml_results = {}
-            for q in questions_data:
+            for q_num_idx, q in enumerate(questions_data):
                 q_num = q["question_number"]
 
-                # Try real OCR on the uploaded image
+                # Try Groq Vision OCR on the uploaded image
                 student_answer = "No answer provided"
-                if image_path and os.path.exists(image_path):
+                if image_path and os.path.exists(image_path) and Config.GROQ_API_KEY:
                     try:
                         import cv2
                         import numpy as np
-                        from PIL import Image
-
                         img = cv2.imread(image_path)
                         if img is None and image_path.lower().endswith('.pdf'):
                             import fitz
@@ -106,18 +104,18 @@ def _run_pipeline(submission_id):
                             pix = doc[0].get_pixmap(dpi=150)
                             arr = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
                             img = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR) if pix.n == 3 else cv2.cvtColor(arr, cv2.COLOR_RGBA2BGR)
-
                         if img is not None:
-                            # Use ml_pipeline lazy loader to avoid reloading model per question
-                            from ml_pipeline import _load_trocr
-                            processor, model = _load_trocr()
-                            rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                            pil = Image.fromarray(rgb)
-                            pixel_values = processor(images=pil, return_tensors="pt").pixel_values
-                            generated = model.generate(pixel_values, max_new_tokens=256)
-                            student_answer = processor.batch_decode(generated, skip_special_tokens=True)[0].strip() or "No answer detected"
+                            from ml_pipeline import _groq_ocr
+                            # Split image per question
+                            h, w = img.shape[:2]
+                            n = len(questions_data)
+                            section_h = h // n if n > 1 else h
+                            y1 = q_num_idx * section_h
+                            y2 = (q_num_idx + 1) * section_h if q_num_idx < n - 1 else h
+                            crop = img[y1:y2, 0:w]
+                            student_answer = _groq_ocr(crop, Config.GROQ_API_KEY)
                     except Exception as e:
-                        print(f"Fallback OCR failed for Q{q_num}: {e}")
+                        print(f"Groq Vision OCR failed for Q{q_num}: {e}")
 
                 try:
                     result = evaluate_answer(

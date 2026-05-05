@@ -1,34 +1,15 @@
 """
-ml_pipeline.py  —  c:/h/
-Full pipeline: ArUco alignment → answer-region crop → TrOCR → Groq LLM evaluation
-Called by ocr_tasks.py via:  from ml_pipeline import process_submission
+ml_pipeline.py
+Full pipeline: ArUco alignment → answer-region crop → Groq Vision OCR → Groq LLM evaluation
+Uses Groq Vision instead of TrOCR to avoid RAM issues on Render free tier.
 """
 
-import os, json, cv2, numpy as np
+import os, json, cv2, numpy as np, base64
 from PIL import Image
-
-# ── TrOCR (lazy-loaded so startup is fast) ───────────────────
-_trocr_processor = None
-_trocr_model     = None
-
-def _load_trocr():
-    global _trocr_processor, _trocr_model
-    if _trocr_processor is None:
-        from transformers import TrOCRProcessor, VisionEncoderDecoderModel
-        print("Loading TrOCR model (first run may take a minute)...")
-        _trocr_processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-handwritten")
-        _trocr_model     = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-base-handwritten")
-        print("TrOCR loaded.")
-    return _trocr_processor, _trocr_model
 
 
 # ── ArUco detection & perspective correction ─────────────────
 def _detect_and_warp(image_bgr):
-    """
-    Detect 4 ArUco markers (IDs 0-3) and warp the page to a
-    canonical A4-like rectangle (794 x 1123 px).
-    Returns warped image or original if markers not found.
-    """
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
     aruco_dict   = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
     aruco_params = cv2.aruco.DetectorParameters()
@@ -42,12 +23,11 @@ def _detect_and_warp(image_bgr):
     for i, mid in enumerate(ids.flatten()):
         if mid in (0, 1, 2, 3):
             c = corners[i][0]
-            id_to_corner[mid] = c.mean(axis=0)  # centre of marker
+            id_to_corner[mid] = c.mean(axis=0)
 
     if len(id_to_corner) < 4:
         return image_bgr, False
 
-    # marker layout: 0=TL, 1=TR, 2=BL, 3=BR
     src = np.float32([id_to_corner[0], id_to_corner[1],
                       id_to_corner[2], id_to_corner[3]])
     W, H = 794, 1123
@@ -59,45 +39,62 @@ def _detect_and_warp(image_bgr):
 
 # ── Crop answer region from bounding box ─────────────────────
 def _crop_region(image_bgr, bbox, page_h):
-    """
-    bbox from pdf_generator: {x, y, width, height}
-    y is measured from top of page (converted from PDF coords).
-    """
     x, y, w, h = int(bbox["x"]), int(bbox["y"]), int(bbox["width"]), int(bbox["height"])
     img_h, img_w = image_bgr.shape[:2]
-
-    # Scale bbox to actual image dimensions
     scale_x = img_w / 794
     scale_y = img_h / 1123
-    x  = int(x  * scale_x)
-    y  = int(y  * scale_y)
-    w  = int(w  * scale_x)
-    h  = int(h  * scale_y)
-
-    # Clamp
-    x  = max(0, x)
-    y  = max(0, y)
-    x2 = min(img_w, x + w)
-    y2 = min(img_h, y + h)
-
+    x  = max(0, int(x * scale_x))
+    y  = max(0, int(y * scale_y))
+    x2 = min(img_w, x + int(w * scale_x))
+    y2 = min(img_h, y + int(h * scale_y))
     crop = image_bgr[y:y2, x:x2]
     return crop if crop.size > 0 else image_bgr
 
 
-# ── TrOCR inference on a single crop ─────────────────────────
-def _ocr_crop(crop_bgr):
-    processor, model = _load_trocr()
-    rgb  = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB)
-    pil  = Image.fromarray(rgb)
+# ── Convert image to base64 for Groq Vision ──────────────────
+def _image_to_base64(image_bgr):
+    rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+    pil = Image.fromarray(rgb)
+    # Resize if too large to save tokens
+    max_size = 1024
+    if pil.width > max_size or pil.height > max_size:
+        pil.thumbnail((max_size, max_size), Image.LANCZOS)
+    import io
+    buf = io.BytesIO()
+    pil.save(buf, format="JPEG", quality=85)
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
 
-    # Resize if too small
-    if pil.width < 32 or pil.height < 32:
-        pil = pil.resize((max(pil.width, 128), max(pil.height, 64)))
 
-    pixel_values = processor(images=pil, return_tensors="pt").pixel_values
-    generated    = model.generate(pixel_values, max_new_tokens=256)
-    text         = processor.batch_decode(generated, skip_special_tokens=True)[0]
-    return text.strip() or "No answer detected"
+# ── Groq Vision OCR ───────────────────────────────────────────
+def _groq_ocr(crop_bgr, groq_api_key):
+    """Use Groq Vision to extract handwritten text from image crop."""
+    try:
+        from groq import Groq
+        client = Groq(api_key=groq_api_key)
+        img_b64 = _image_to_base64(crop_bgr)
+        response = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}
+                    },
+                    {
+                        "type": "text",
+                        "text": "This is a handwritten student answer. Extract and transcribe ONLY the handwritten text exactly as written. Do not add any explanation or commentary. If no text is visible, respond with 'No answer written'."
+                    }
+                ]
+            }],
+            max_tokens=512,
+            temperature=0
+        )
+        text = response.choices[0].message.content.strip()
+        return text if text else "No answer detected"
+    except Exception as e:
+        print(f"Groq Vision OCR failed: {e}")
+        return "OCR failed"
 
 
 # ── Groq LLM evaluation ───────────────────────────────────────
@@ -121,7 +118,7 @@ Respond ONLY with JSON:
   "feedback": "<1-2 sentence feedback>",
   "ocr_quality_concern": <true or false>
 }}"""
-    resp   = client.chat.completions.create(
+    resp = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[{"role": "user", "content": prompt}],
         temperature=0,
@@ -145,7 +142,6 @@ def _local_evaluate(model_answer, rubric, student_answer, max_marks):
 
     student_lower  = student_answer.lower().strip()
     model_keywords = keywords(model_answer)
-
     rubric_list = rubric if isinstance(rubric, list) else \
                   list(rubric.values()) if isinstance(rubric, dict) else [str(rubric)]
 
@@ -157,14 +153,14 @@ def _local_evaluate(model_answer, rubric, student_answer, max_marks):
         else:
             missing.append(point)
 
-    rubric_score   = len(matched) / len(rubric_list) if rubric_list else 0
-    kw_hits        = sum(1 for k in model_keywords if k in student_lower)
-    keyword_score  = min(kw_hits / len(model_keywords), 1.0) if model_keywords else 0.5
-    word_count     = len(student_lower.split())
-    length_factor  = min(word_count / 10, 1.0)
-    combined       = rubric_score * 0.6 + keyword_score * 0.3 + length_factor * 0.1
-    score          = round(max(0, min(combined * max_marks, max_marks)), 1)
-    pct            = score / max_marks * 100 if max_marks else 0
+    rubric_score  = len(matched) / len(rubric_list) if rubric_list else 0
+    kw_hits       = sum(1 for k in model_keywords if k in student_lower)
+    keyword_score = min(kw_hits / len(model_keywords), 1.0) if model_keywords else 0.5
+    word_count    = len(student_lower.split())
+    length_factor = min(word_count / 10, 1.0)
+    combined      = rubric_score * 0.6 + keyword_score * 0.3 + length_factor * 0.1
+    score         = round(max(0, min(combined * max_marks, max_marks)), 1)
+    pct           = score / max_marks * 100 if max_marks else 0
 
     if pct >= 80:   fb = "Excellent answer!"
     elif pct >= 60: fb = "Good attempt. Most key points covered."
@@ -174,36 +170,22 @@ def _local_evaluate(model_answer, rubric, student_answer, max_marks):
         fb += f" Missing: {', '.join(str(m).split(':')[0] for m in missing[:2])}."
 
     return {
-        "score": score, "confidence": round(min(0.5 + keyword_score * 0.4 + length_factor * 0.1, 0.95), 2),
+        "score": score,
+        "confidence": round(min(0.5 + keyword_score * 0.4 + length_factor * 0.1, 0.95), 2),
         "matched_points": matched, "missing_points": missing,
         "feedback": fb, "ocr_quality_concern": word_count < 3
     }
 
 
-# ── Main entry point called by ocr_tasks.py ──────────────────
+# ── Main entry point ──────────────────────────────────────────
 def process_submission(submission_id, image_path, questions, bounding_boxes, groq_api_key=""):
-    """
-    Parameters
-    ----------
-    submission_id  : int
-    image_path     : str  — path to uploaded image/PDF page
-    questions      : list of dicts with keys:
-                     question_number, question_text, model_answer, max_marks, rubric, question_id
-    bounding_boxes : list of dicts with keys: question_number, x, y, width, height
-    groq_api_key   : str
-
-    Returns
-    -------
-    {"status": "success", "results": [...]}  or  {"status": "error", "message": "..."}
-    """
     try:
-        # ── Load image ───────────────────────────────────────
+        # Load image
         ext = os.path.splitext(image_path)[1].lower()
         if ext == ".pdf":
-            import fitz  # PyMuPDF
+            import fitz
             doc  = fitz.open(image_path)
-            page = doc[0]
-            pix  = page.get_pixmap(dpi=150)
+            pix  = doc[0].get_pixmap(dpi=150)
             arr  = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
             image_bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR) if pix.n == 3 else \
                         cv2.cvtColor(arr, cv2.COLOR_RGBA2BGR)
@@ -213,45 +195,40 @@ def process_submission(submission_id, image_path, questions, bounding_boxes, gro
         if image_bgr is None:
             return {"status": "error", "message": f"Cannot read image: {image_path}"}
 
-        # ── ArUco warp ───────────────────────────────────────
+        # ArUco warp
         warped, aligned = _detect_and_warp(image_bgr)
         if not aligned:
-            print(f"ArUco markers not found for submission {submission_id}, using section-split fallback.")
+            print(f"ArUco not found for submission {submission_id}, using section-split.")
             warped = image_bgr
 
         page_h = warped.shape[0]
         page_w = warped.shape[1]
-
-        # Build bbox lookup
         bbox_map = {b["question_number"]: b for b in bounding_boxes}
-
-        results = []
         num_questions = len(questions)
+        results = []
+
         for idx, q in enumerate(questions):
             q_num = q["question_number"]
             bbox  = bbox_map.get(q_num)
 
-            # ── OCR ──────────────────────────────────────────
+            # Crop answer region
             if aligned and bbox:
-                # ArUco aligned — use exact bounding box crop
                 crop = _crop_region(warped, bbox, page_h)
             elif not aligned and num_questions > 1:
-                # No ArUco — split image equally into sections per question
                 section_h = page_h // num_questions
                 y1 = idx * section_h
                 y2 = (idx + 1) * section_h if idx < num_questions - 1 else page_h
                 crop = warped[y1:y2, 0:page_w]
             else:
-                # Single question or last resort — use full image
                 crop = warped
 
-            try:
-                extracted_text = _ocr_crop(crop)
-            except Exception as e:
-                print(f"TrOCR failed for Q{q_num}: {e}")
-                extracted_text = "OCR failed"
+            # OCR using Groq Vision (no RAM needed)
+            if groq_api_key and groq_api_key.strip():
+                extracted_text = _groq_ocr(crop, groq_api_key)
+            else:
+                extracted_text = "No answer detected (API key missing)"
 
-            # ── Evaluate ─────────────────────────────────────
+            # Evaluate
             try:
                 if groq_api_key and groq_api_key.strip():
                     eval_result = _groq_evaluate(
@@ -270,7 +247,7 @@ def process_submission(submission_id, image_path, questions, bounding_boxes, gro
                         max_marks=q["max_marks"]
                     )
             except Exception as e:
-                print(f"Evaluation failed for Q{q_num}: {e}, using local fallback.")
+                print(f"Evaluation failed for Q{q_num}: {e}")
                 eval_result = _local_evaluate(
                     model_answer=q["model_answer"],
                     rubric=q["rubric"],
